@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict
 import json
 import html
 import logging
 from urllib.parse import urlparse
 import secrets
+import os
 
 # Configure logging
 logging.basicConfig(
@@ -135,40 +136,141 @@ async def verify_email(request: VerificationRequest, db: Session = Depends(get_d
         logger.error(f"Error in verify_email: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# 在 api_routes.py 中改进 webhook 处理
+
 @router.post("/webhook/shopify")
 async def shopify_webhook(request: Request, db: Session = Depends(get_db)):
-    """Handle Shopify payment webhooks"""
+    """Handle Shopify payment webhooks with better error handling"""
     try:
         body = await request.body()
         signature = request.headers.get("X-Shopify-Hmac-Sha256", "")
-        
-        # Verify webhook (in production)
-        # if not shopify_service.verify_webhook(body, signature):
-        #     raise HTTPException(status_code=401, detail="Invalid signature")
-        
+
+        logger.info(f"[WEBHOOK] Received Shopify webhook")
+
+        if os.getenv("ENVIRONMENT") == "production":
+            if not shopify_service.verify_webhook(body, signature):
+                logger.error("[WEBHOOK] Invalid webhook signature")
+                raise HTTPException(status_code=401, detail="Invalid signature")
+
         webhook_data = json.loads(body)
-        
-        # Extract record ID and update purchase status
+        webhook_topic = request.headers.get("X-Shopify-Topic", "")
+
+        logger.info(f"[WEBHOOK] Topic: {webhook_topic}, Order ID: {webhook_data.get('id')}")
+
+        if webhook_topic not in ["orders/paid", "orders/fulfilled", "orders/create"]:
+            logger.info(f"[WEBHOOK] Ignoring webhook topic: {webhook_topic}")
+            return {"status": "ignored"}
+
+        # 提取 record ID
         record_id = shopify_service.extract_record_id_from_order(webhook_data)
+
+        if not record_id:
+            # 尝试通过客户邮箱查找最近的记录
+            customer_email = webhook_data.get("email") or webhook_data.get("customer", {}).get("email")
+
+            if customer_email:
+                logger.info(f"[WEBHOOK] Trying to find record by email: {customer_email}")
+                record = db.query(AstrologyRecord).filter(
+                    AstrologyRecord.email == customer_email,
+                    AstrologyRecord.is_purchased == False
+                ).order_by(AstrologyRecord.created_at.desc()).first()
+
+                if record:
+                    record_id = record.id
+                    logger.info(f"[WEBHOOK] Found record by email: {record_id}")
+
         if record_id:
             record = db.query(AstrologyRecord).filter(AstrologyRecord.id == record_id).first()
+
             if record:
+                # 检查是否已经处理过
+                if record.is_purchased and record.shopify_order_id:
+                    logger.info(f"[WEBHOOK] Order already processed for record {record_id}")
+                    return {"status": "already_processed"}
+
+                # 更新购买状态
                 record.is_purchased = True
-                record.shopify_order_id = webhook_data.get("id")
+                record.shopify_order_id = str(webhook_data.get("id"))
+                record.purchase_date = datetime.now()
+
                 try:
                     db.commit()
-                except Exception:
+                    logger.info(f"[WEBHOOK] Updated purchase status for record {record_id}")
+                except Exception as e:
                     db.rollback()
-                
-                # Send result email
-                await email_service.send_astrology_result_email(
-                    record.email, record.name, record.full_result_en or "Your astrology reading"
-                )
-        
+                    logger.error(f"[WEBHOOK] Database error: {e}")
+                    raise HTTPException(status_code=500, detail="Database error")
+
+                # 发送结果邮件
+                try:
+                    email_sent = await email_service.send_astrology_result_email(
+                        record.email,
+                        record.name,
+                        record.full_result_en or "Your personalized astrology reading is ready!"
+                    )
+
+                    if email_sent:
+                        logger.info(f"[WEBHOOK] Result email sent to {record.email}")
+                    else:
+                        logger.error(f"[WEBHOOK] Failed to send email to {record.email}")
+                        # 可以添加重试逻辑或发送到队列
+
+                except Exception as e:
+                    logger.error(f"[WEBHOOK] Email service error: {e}")
+                    # 不要因为邮件失败而让 webhook 失败
+
+            else:
+                logger.error(f"[WEBHOOK] Record {record_id} not found in database")
+        else:
+            logger.error(f"[WEBHOOK] Could not identify record for order {webhook_data.get('id')}")
+            # 可以发送通知给管理员处理
+
         return {"status": "success"}
-        
+
+    except json.JSONDecodeError as e:
+        logger.error(f"[WEBHOOK] Invalid JSON: {e}")
+        raise HTTPException(status_code=400, detail="Invalid JSON")
     except Exception as e:
-        print(f"Webhook error: {e}")
+        logger.error(f"[WEBHOOK] Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# 添加手动触发邮件发送的端点（用于补发）
+@router.post("/admin/resend-result-email")
+async def resend_result_email(
+        request: Dict,
+        db: Session = Depends(get_db),
+        _: str = Depends(verify_admin_auth)
+):
+    """Manually resend result email for a record"""
+    record_id = request.get("record_id")
+
+    if not record_id:
+        raise HTTPException(status_code=400, detail="record_id required")
+
+    record = db.query(AstrologyRecord).filter(AstrologyRecord.id == record_id).first()
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    if not record.is_purchased:
+        raise HTTPException(status_code=400, detail="Record not purchased")
+
+    try:
+        email_sent = await email_service.send_astrology_result_email(
+            record.email,
+            record.name,
+            record.full_result_en or "Your astrology reading"
+        )
+
+        if email_sent:
+            return {"message": f"Email sent to {record.email}"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to send email")
+
+    except Exception as e:
+        logger.error(f"Error resending email: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Public products endpoint for frontend
