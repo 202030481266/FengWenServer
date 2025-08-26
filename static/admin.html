@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astrology Admin Panel</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .section { margin-bottom: 40px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .product-item, .translation-item { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 4px; }
+        .error { color: red; margin-top: 5px; }
+        .success { color: green; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <!-- Admin Login Form -->
+    <div id="login-form" class="container" style="max-width: 400px; margin-top: 100px;">
+        <h1 style="text-align: center;">Admin Login</h1>
+        <div class="form-group">
+            <label>Password:</label>
+            <input type="password" id="admin-password" placeholder="Enter admin password">
+        </div>
+        <button onclick="adminLogin()" style="width: 100%;">Login</button>
+        <div id="login-error" class="error"></div>
+    </div>
+
+    <!-- Admin Panel (hidden by default) -->
+    <div id="admin-panel" class="container" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1>Astrology Admin Panel</h1>
+            <button onclick="adminLogout()" style="background: #dc3545; padding: 8px 16px;">Logout</button>
+        </div>
+        
+        <!-- Products Section -->
+        <div class="section">
+            <h2>Product Management</h2>
+            <div id="products-list"></div>
+        </div>
+        
+        <!-- Translation Pairs Section -->
+        <div class="section">
+            <h2>Translation Management</h2>
+            <div class="form-group">
+                <label>Add New Translation Pair:</label>
+                <input type="text" id="new-chinese" placeholder="Chinese text">
+                <input type="text" id="new-english" placeholder="English translation">
+                <button onclick="addTranslation()">Add Translation</button>
+                <div id="add-translation-result"></div>
+            </div>
+            <div id="translations-list"></div>
+        </div>
+    </div>
+    </div>
+
+    <script>
+        const ADMIN_TOKEN = "admin123";
+        let isAuthenticated = false;
+        
+        // Add authentication to all API calls
+        const authHeaders = {
+            "Authorization": "Bearer " + ADMIN_TOKEN,
+            "Content-Type": "application/json"
+        };
+        
+        function adminLogin() {
+            const password = document.getElementById('admin-password').value;
+            if (password === ADMIN_TOKEN) {
+                isAuthenticated = true;
+                document.getElementById('login-form').style.display = 'none';
+                document.getElementById('admin-panel').style.display = 'block';
+                loadProducts();
+                loadTranslations();
+            } else {
+                document.getElementById('login-error').textContent = 'Invalid password';
+            }
+        }
+        
+        function adminLogout() {
+            isAuthenticated = false;
+            document.getElementById('login-form').style.display = 'block';
+            document.getElementById('admin-panel').style.display = 'none';
+            document.getElementById('admin-password').value = '';
+            document.getElementById('login-error').textContent = '';
+        }
+        
+        // Load products on page load - now requires authentication
+        window.onload = function() {
+            // Check if already authenticated (could use localStorage in production)
+            // For now, always show login form
+        };
+
+        async function loadProducts() {
+            try {
+                const response = await fetch('/api/admin/products', { headers: authHeaders });
+                const products = await response.json();
+                
+                const listDiv = document.getElementById('products-list');
+                listDiv.innerHTML = '';
+                
+                products.forEach(product => {
+                    const productDiv = document.createElement('div');
+                    productDiv.className = 'product-item';
+                    productDiv.innerHTML = `
+                        <h4>Product ${product.id}</h4>
+                        <div class="form-group">
+                            <label>Name:</label>
+                            <input type="text" value="${product.name || ''}" id="name-${product.id}">
+                        </div>
+                        <div class="form-group">
+                            <label>Image URL:</label>
+                            <input type="text" value="${product.image_url || ''}" id="image-${product.id}">
+                        </div>
+                        <div class="form-group">
+                            <label>Redirect URL:</label>
+                            <input type="text" value="${product.redirect_url || ''}" id="redirect-${product.id}">
+                        </div>
+                        <button onclick="updateProduct(${product.id})">Update Product</button>
+                        <div id="result-${product.id}"></div>
+                    `;
+                    listDiv.appendChild(productDiv);
+                });
+            } catch (error) {
+                console.error('Error loading products:', error);
+            }
+        }
+
+        async function updateProduct(productId) {
+            try {
+                const name = document.getElementById(`name-${productId}`).value;
+                const image_url = document.getElementById(`image-${productId}`).value;
+                const redirect_url = document.getElementById(`redirect-${productId}`).value;
+                
+                const response = await fetch(`/api/admin/products/${productId}`, {
+                    method: 'PUT',
+                    headers: authHeaders,
+                    body: JSON.stringify({
+                        name: name,
+                        image_url: image_url,
+                        redirect_url: redirect_url
+                    })
+                });
+                
+                const result = await response.json();
+                const resultDiv = document.getElementById(`result-${productId}`);
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = '<div class="success">Product updated successfully!</div>';
+                } else {
+                    resultDiv.innerHTML = '<div class="error">Error: ' + result.detail + '</div>';
+                }
+                
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Error updating product:', error);
+            }
+        }
+
+        async function loadTranslations() {
+            try {
+                const response = await fetch('/api/admin/translations', { headers: authHeaders });
+                const translations = await response.json();
+                
+                const listDiv = document.getElementById('translations-list');
+                listDiv.innerHTML = '';
+                
+                translations.forEach(translation => {
+                    const translationDiv = document.createElement('div');
+                    translationDiv.className = 'translation-item';
+                    translationDiv.innerHTML = `
+                        <div class="form-group">
+                            <label>Chinese:</label>
+                            <textarea id="chinese-${translation.id}" rows="2">${translation.chinese_text}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>English:</label>
+                            <textarea id="english-${translation.id}" rows="2">${translation.english_text}</textarea>
+                        </div>
+                        <button onclick="updateTranslation(${translation.id})">Update Translation</button>
+                        <div id="translation-result-${translation.id}"></div>
+                    `;
+                    listDiv.appendChild(translationDiv);
+                });
+            } catch (error) {
+                console.error('Error loading translations:', error);
+            }
+        }
+
+        async function addTranslation() {
+            try {
+                const chinese = document.getElementById('new-chinese').value;
+                const english = document.getElementById('new-english').value;
+                
+                if (!chinese || !english) {
+                    document.getElementById('add-translation-result').innerHTML = '<div class="error">Both fields required</div>';
+                    return;
+                }
+                
+                const response = await fetch('/api/admin/translations', {
+                    method: 'POST',
+                    headers: authHeaders,
+                    body: JSON.stringify({
+                        id: 0, // Will be ignored
+                        chinese_text: chinese,
+                        english_text: english
+                    })
+                });
+                
+                const result = await response.json();
+                const resultDiv = document.getElementById('add-translation-result');
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = '<div class="success">Translation added successfully!</div>';
+                    document.getElementById('new-chinese').value = '';
+                    document.getElementById('new-english').value = '';
+                    loadTranslations(); // Refresh list
+                } else {
+                    resultDiv.innerHTML = '<div class="error">Error: ' + result.detail + '</div>';
+                }
+                
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Error adding translation:', error);
+            }
+        }
+
+        async function updateTranslation(translationId) {
+            try {
+                const chinese = document.getElementById(`chinese-${translationId}`).value;
+                const english = document.getElementById(`english-${translationId}`).value;
+                
+                const response = await fetch(`/api/admin/translations/${translationId}`, {
+                    method: 'PUT',
+                    headers: authHeaders,
+                    body: JSON.stringify({
+                        id: translationId,
+                        chinese_text: chinese,
+                        english_text: english
+                    })
+                });
+                
+                const result = await response.json();
+                const resultDiv = document.getElementById(`translation-result-${translationId}`);
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = '<div class="success">Translation updated successfully!</div>';
+                } else {
+                    resultDiv.innerHTML = '<div class="error">Error: ' + result.detail + '</div>';
+                }
+                
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Error updating translation:', error);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astrology Fortune Reading</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .step { display: none; }
+        .step.active { display: block; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #333; }
+        input, select { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; }
+        input:focus, select:focus { border-color: #667eea; outline: none; }
+        button { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 30px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; }
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .result-box { 
+            background: #f8f9fa; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-top: 20px; 
+            border-left: 4px solid #667eea; 
+            white-space: pre-line; 
+            line-height: 1.6; 
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error { color: red; margin-top: 10px; font-size: 14px; }
+        .success { color: green; margin-top: 10px; font-size: 14px; }
+        .loading { text-align: center; padding: 20px; }
+        .checkout-button { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); margin-top: 15px; }
+        h1 { text-align: center; color: #333; margin-bottom: 30px; }
+        h2 { color: #667eea; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="text-align: right; margin-bottom: 10px;">
+            <button onclick="window.open('/static/admin.html', '_blank')" 
+                    style="background: #6c757d; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                🛠️ Admin Panel
+            </button>
+        </div>
+        <h1>🔮 Astrology Fortune Reading</h1>
+        
+        <!-- Step 1: User Info -->
+        <div id="step1" class="step active">
+            <h2>Personal Information</h2>
+            <div class="form-group">
+                <label>Full Name:</label>
+                <input type="text" id="name" placeholder="Enter your full name" required>
+            </div>
+            <div class="form-group">
+                <label>Email Address:</label>
+                <input type="email" id="email" placeholder="your@email.com" required>
+            </div>
+            <div class="form-group">
+                <label>Birth Date:</label>
+                <input type="date" id="birthDate" required>
+            </div>
+            <div class="form-group">
+                <label>Birth Time:</label>
+                <input type="time" id="birthTime" required>
+            </div>
+            <div class="form-group">
+                <label>Gender:</label>
+                <select id="gender" required>
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                </select>
+            </div>
+            <button onclick="sendVerificationFirst()">Send Verification Code</button>
+            <div id="step1-error" class="error"></div>
+        </div>
+        
+        <!-- Step 2: Email Verification -->
+        <div id="step2" class="step">
+            <h2>Email Verification</h2>
+            <p>We've sent a verification code to your email address. Please enter it below:</p>
+            <div class="form-group">
+                <label>Verification Code:</label>
+                <input type="text" id="verificationCode" placeholder="Enter 6-digit code" maxlength="6" required>
+            </div>
+            <button onclick="verifyCodeAndSubmitForm()">Verify Code & Get Results</button>
+            <button onclick="sendVerificationCode()" style="background: #6c757d; margin-top: 10px;">Resend Code</button>
+            <div id="step2-error" class="error"></div>
+            <div id="step2-success" class="success"></div>
+        </div>
+        
+        <!-- Step 3: Preview Results -->
+        <div id="step3" class="step">
+            <h2>Your Astrology Preview</h2>
+            <div id="previewResult" class="result-box"></div>
+        </div>
+        
+        <!-- Step 4: Full Results -->
+        <div id="step4" class="step">
+            <h2>Your Complete Astrology Reading</h2>
+            <div id="fullResult" class="result-box"></div>
+            <div id="paymentSection">
+                <p><strong>To receive your full detailed reading via email, please complete the payment:</strong></p>
+                <button id="checkoutButton" class="checkout-button" onclick="goToCheckout()">Complete Payment - Get Full Reading</button>
+            </div>
+        </div>
+        
+        <!-- Loading -->
+        <div id="loading" class="loading" style="display: none;">
+            <p>✨ Calculating your astrology reading...</p>
+        </div>
+        
+        <!-- Products Section -->
+        <div class="products-section" style="margin-top: 30px; padding: 20px; background: rgba(255,255,255,0.9); border-radius: 15px;">
+            <h2 style="text-align: center; color: #667eea; margin-bottom: 20px;">✨ Discover More</h2>
+            <div class="products-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+                <div id="product-1" class="product-card" style="text-align: center; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); cursor: pointer;" onclick="openProduct(1)">
+                    <img id="product-1-image" src="https://via.placeholder.com/200x150" alt="Product 1" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 10px;">
+                    <h4 id="product-1-name" style="margin: 5px 0; color: #333;">Product 1</h4>
+                </div>
+                <div id="product-2" class="product-card" style="text-align: center; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); cursor: pointer;" onclick="openProduct(2)">
+                    <img id="product-2-image" src="https://via.placeholder.com/200x150" alt="Product 2" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 10px;">
+                    <h4 id="product-2-name" style="margin: 5px 0; color: #333;">Product 2</h4>
+                </div>
+                <div id="product-3" class="product-card" style="text-align: center; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); cursor: pointer;" onclick="openProduct(3)">
+                    <img id="product-3-image" src="https://via.placeholder.com/200x150" alt="Product 3" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 10px;">
+                    <h4 id="product-3-name" style="margin: 5px 0; color: #333;">Product 3</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let userEmail = '';
+        let userFormData = {};
+        let checkoutUrl = '';
+
+        // Step 1: Send verification code first (validate form but don't submit yet)
+        async function sendVerificationFirst() {
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const birthDate = document.getElementById('birthDate').value;
+            const birthTime = document.getElementById('birthTime').value;
+            const gender = document.getElementById('gender').value;
+
+            // Validate each field individually
+            if (!name) {
+                document.getElementById('step1-error').textContent = 'Please enter your full name';
+                return;
+            }
+            
+            if (!email) {
+                document.getElementById('step1-error').textContent = 'Please enter your email address';
+                return;
+            }
+            
+            // Basic email format validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                document.getElementById('step1-error').textContent = 'Please enter a valid email address';
+                return;
+            }
+            
+            if (!birthDate) {
+                document.getElementById('step1-error').textContent = 'Please select your birth date';
+                return;
+            }
+            
+            if (!birthTime) {
+                document.getElementById('step1-error').textContent = 'Please select your birth time';
+                return;
+            }
+            
+            if (!gender) {
+                document.getElementById('step1-error').textContent = 'Please select your gender';
+                return;
+            }
+
+            // Store form data for later submission
+            userEmail = email;
+            userFormData = {
+                name: name,
+                email: email,
+                birth_date: birthDate,
+                birth_time: birthTime,
+                gender: gender
+            };
+            
+            document.getElementById('step1-error').textContent = '';
+            
+            // Send verification code first
+            try {
+                const response = await fetch('/api/send-verification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email: email })
+                });
+
+                if (response.ok) {
+                    showStep(2); // Go to verification step
+                    document.getElementById('step2-success').textContent = 'Verification code sent! Please check your email.';
+                } else {
+                    document.getElementById('step1-error').textContent = 'Failed to send verification code';
+                }
+            } catch (error) {
+                document.getElementById('step1-error').textContent = 'Network error. Please try again.';
+            }
+        }
+
+        async function sendVerificationCode() {
+            try {
+                const response = await fetch('/api/send-verification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: userEmail
+                    })
+                });
+
+                if (response.ok) {
+                    document.getElementById('step2-success').textContent = 'Verification code sent!';
+                    document.getElementById('step2-error').textContent = '';
+                    setTimeout(() => {
+                        document.getElementById('step2-success').textContent = '';
+                    }, 3000);
+                } else {
+                    document.getElementById('step2-error').textContent = 'Failed to send verification code';
+                }
+            } catch (error) {
+                document.getElementById('step2-error').textContent = 'Network error';
+            }
+        }
+
+        // Step 2: Verify code then submit complete form
+        async function verifyCodeAndSubmitForm() {
+            const code = document.getElementById('verificationCode').value;
+            
+            if (!code || code.length !== 6) {
+                document.getElementById('step2-error').textContent = 'Please enter a valid 6-digit code';
+                return;
+            }
+
+            document.getElementById('step2-error').textContent = '';
+            document.getElementById('loading').style.display = 'block';
+
+            try {
+                // First verify the code
+                const verifyResponse = await fetch('/api/verify-email-first', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: userEmail,
+                        code: code
+                    })
+                });
+
+                if (!verifyResponse.ok) {
+                    document.getElementById('loading').style.display = 'none';
+                    const verifyResult = await verifyResponse.json();
+                    document.getElementById('step2-error').textContent = verifyResult.detail || 'Invalid verification code';
+                    return;
+                }
+
+                // If verification successful, submit the complete form
+                const submitResponse = await fetch('/api/astrology/calculate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(userFormData)
+                });
+
+                const result = await submitResponse.json();
+                document.getElementById('loading').style.display = 'none';
+
+                if (submitResponse.ok) {
+                    checkoutUrl = result.shopify_url;
+                    
+                    // Display the structured astrology results
+                    const formattedResult = formatStructuredAstrologyResult(result.astrology_results);
+                    document.getElementById('fullResult').innerHTML = `
+                        <h3 style="color: #667eea; margin: 0 0 20px 0;">Your Astrology Reading</h3>
+                        ${formattedResult}
+                    `;
+                    
+                    // Show the final results step
+                    showStep(4);
+                } else {
+                    document.getElementById('step2-error').textContent = result.detail || 'Failed to process your reading';
+                }
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('step2-error').textContent = 'Network error. Please try again.';
+            }
+        }
+
+        function goToCheckout() {
+            if (checkoutUrl) {
+                window.open(checkoutUrl, '_blank');
+            } else {
+                alert('Checkout URL not available. Please try again.');
+            }
+        }
+
+        function showStep(stepNumber) {
+            // Hide all steps
+            document.querySelectorAll('.step').forEach(step => {
+                step.classList.remove('active');
+            });
+            
+            // Show the selected step
+            document.getElementById(`step${stepNumber}`).classList.add('active');
+        }
+
+        // Load products on page load
+        window.addEventListener('DOMContentLoaded', loadProducts);
+
+        async function loadProducts() {
+            try {
+                const response = await fetch('/api/products');
+                const products = await response.json();
+                
+                products.slice(0, 3).forEach((product, index) => {
+                    const productIndex = index + 1;
+                    document.getElementById(`product-${productIndex}-image`).src = product.image_url || 'https://via.placeholder.com/200x150';
+                    document.getElementById(`product-${productIndex}-name`).textContent = product.name || `Product ${productIndex}`;
+                    document.getElementById(`product-${productIndex}`).setAttribute('data-url', product.redirect_url || '#');
+                });
+            } catch (error) {
+                console.error('Error loading products:', error);
+            }
+        }
+
+        function openProduct(productIndex) {
+            const productCard = document.getElementById(`product-${productIndex}`);
+            const url = productCard.getAttribute('data-url');
+            console.log(`Product ${productIndex} clicked, URL: ${url}`);
+            if (url && url !== '#') {
+                window.open(url, '_blank');
+            } else {
+                console.log(`Product ${productIndex} has no valid URL: ${url}`);
+                alert('Product link not available yet. Please try refreshing the page.');
+            }
+        }
+
+        function formatAstrologyResult(text) {
+            if (!text) return '<p>Loading your reading...</p>';
+            
+            // Split text into lines and process each line
+            const lines = text.split('\n');
+            let formatted = '';
+            
+            for (let line of lines) {
+                line = line.trim();
+                if (!line) continue;
+                
+                // Make headers bold and bigger
+                if (line.startsWith('###')) {
+                    formatted += `<h3 style="color: #667eea; margin: 20px 0 10px 0; font-size: 18px;">${line.replace('###', '').trim()}</h3>`;
+                } else if (line.startsWith('**') && line.endsWith('**')) {
+                    formatted += `<h4 style="color: #764ba2; margin: 15px 0 8px 0; font-weight: bold;">${line.replace(/\*\*/g, '')}</h4>`;
+                } else if (line.includes('**')) {
+                    // Handle bold text within paragraphs
+                    const boldFormatted = line.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #667eea;">$1</strong>');
+                    formatted += `<p style="margin: 8px 0; line-height: 1.5;">${boldFormatted}</p>`;
+                } else if (line.startsWith('*') && line.endsWith('*')) {
+                    // Italic quotes
+                    formatted += `<p style="font-style: italic; margin: 10px 0; color: #666; text-align: center;">${line.replace(/^\*|\*$/g, '')}</p>`;
+                } else {
+                    // Regular paragraphs
+                    formatted += `<p style="margin: 8px 0; line-height: 1.5;">${line}</p>`;
+                }
+            }
+            
+            return formatted || '<p>Your reading is being prepared...</p>';
+        }
+
+        function formatStructuredAstrologyResult(data) {
+            if (!data) return '<p>Loading your reading...</p>';
+            
+            // Handle fallback message format
+            if (typeof data === 'string') {
+                return formatAstrologyResult(data);
+            }
+            
+            // Handle simple message objects
+            if (data.message && !data.data && !data.base_info) {
+                return `<p style="margin: 8px 0; line-height: 1.5;">${data.message}</p>`;
+            }
+            
+            let formatted = '';
+            
+            // Display base information
+            if (data.base_info) {
+                formatted += `<div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">`;
+                formatted += `<h3 style="color: #667eea; margin: 0 0 15px 0;">Personal Information</h3>`;
+                if (data.base_info.name) formatted += `<p><strong>Name:</strong> ${data.base_info.name}</p>`;
+                if (data.base_info.birth_date) formatted += `<p><strong>Birth Date:</strong> ${data.base_info.birth_date}</p>`;
+                if (data.base_info.birth_time) formatted += `<p><strong>Birth Time:</strong> ${data.base_info.birth_time}</p>`;
+                if (data.base_info.gender) formatted += `<p><strong>Gender:</strong> ${data.base_info.gender}</p>`;
+                if (data.base_info.lunar_date) formatted += `<p><strong>Lunar Date:</strong> ${data.base_info.lunar_date}</p>`;
+                formatted += `</div>`;
+            }
+            
+            // Handle data section from preview/full results
+            if (data.data) {
+                formatted += formatAstrologyDataSection(data.data);
+            }
+            
+            // Handle multiple API results (bazi, zhengyuan, liudao)
+            ['bazi', 'zhengyuan', 'liudao'].forEach(apiName => {
+                if (data[apiName] && data[apiName].data) {
+                    formatted += `<div style="margin-bottom: 25px; border-left: 4px solid #667eea; padding-left: 15px;">`;
+                    formatted += `<h3 style="color: #764ba2; margin: 0 0 15px 0; text-transform: capitalize;">${apiName} Analysis</h3>`;
+                    formatted += formatAstrologyDataSection(data[apiName].data);
+                    formatted += `</div>`;
+                }
+            });
+            
+            // Display main message if present
+            if (data.message) {
+                formatted += `<div style="background: rgba(118, 75, 162, 0.1); padding: 15px; border-radius: 8px; margin-top: 20px;">`;
+                formatted += `<p style="margin: 0; text-align: center; font-style: italic; color: #764ba2;">${data.message}</p>`;
+                formatted += `</div>`;
+            }
+            
+            return formatted || '<p>Your reading is being prepared...</p>';
+        }
+        
+        function formatAstrologyDataSection(data) {
+            let formatted = '';
+            
+            // Five Elements Analysis
+            if (data.wuxing) {
+                formatted += `<div style="margin-bottom: 20px;">`;
+                formatted += `<h4 style="color: #667eea; margin-bottom: 10px;">Five Elements Analysis</h4>`;
+                if (data.wuxing.simple_description_en) {
+                    formatted += `<p style="margin: 8px 0; line-height: 1.6;"><strong>Summary:</strong> ${data.wuxing.simple_description_en}</p>`;
+                }
+                if (data.wuxing.detail_description_en) {
+                    formatted += `<p style="margin: 8px 0; line-height: 1.6;"><strong>Detailed Analysis:</strong> ${data.wuxing.detail_description_en}</p>`;
+                }
+                formatted += `</div>`;
+            }
+            
+            // Destiny Analysis
+            if (data.mingyun) {
+                formatted += `<div style="margin-bottom: 20px;">`;
+                formatted += `<h4 style="color: #667eea; margin-bottom: 10px;">Destiny Analysis</h4>`;
+                if (data.mingyun.sanshishu_mingyun_en) {
+                    formatted += `<p style="margin: 8px 0; line-height: 1.6;">${data.mingyun.sanshishu_mingyun_en}</p>`;
+                } else if (data.mingyun.translated) {
+                    formatted += `<p style="margin: 8px 0; line-height: 1.6;">${data.mingyun.translated}</p>`;
+                }
+                formatted += `</div>`;
+            }
+            
+            // Relationship Analysis
+            if (data.yinyuan) {
+                formatted += `<div style="margin-bottom: 20px;">`;
+                formatted += `<h4 style="color: #667eea; margin-bottom: 10px;">Relationship & Marriage</h4>`;
+                if (data.yinyuan.sanshishu_yinyuan_en) {
+                    formatted += `<p style="margin: 8px 0; line-height: 1.6;">${data.yinyuan.sanshishu_yinyuan_en}</p>`;
+                } else if (data.yinyuan.translated) {
+                    formatted += `<p style="margin: 8px 0; line-height: 1.6;">${data.yinyuan.translated}</p>`;
+                }
+                formatted += `</div>`;
+            }
+            
+            // Wealth Analysis
+            if (data.caiyun) {
+                formatted += `<div style="margin-bottom: 20px;">`;
+                formatted += `<h4 style="color: #667eea; margin-bottom: 10px;">Wealth & Career</h4>`;
+                if (data.caiyun.sanshishu_caiyun && data.caiyun.sanshishu_caiyun.detail_desc_en) {
+                    formatted += `<p style="margin: 8px 0; line-height: 1.6;">${data.caiyun.sanshishu_caiyun.detail_desc_en}</p>`;
+                } else if (data.caiyun.sanshishu_caiyun_en) {
+                    formatted += `<p style="margin: 8px 0; line-height: 1.6;">${data.caiyun.sanshishu_caiyun_en}</p>`;
+                }
+                formatted += `</div>`;
+            }
+            
+            // Chenggu Fortune
+            if (data.chenggu && (data.chenggu.description_en || data.chenggu.description)) {
+                formatted += `<div style="margin-bottom: 20px;">`;
+                formatted += `<h4 style="color: #667eea; margin-bottom: 10px;">Bone Weight Fortune</h4>`;
+                if (data.chenggu.year_weight) formatted += `<p><strong>Year:</strong> ${data.chenggu.year_weight}</p>`;
+                if (data.chenggu.month_weight) formatted += `<p><strong>Month:</strong> ${data.chenggu.month_weight}</p>`;
+                if (data.chenggu.day_weight) formatted += `<p><strong>Day:</strong> ${data.chenggu.day_weight}</p>`;
+                if (data.chenggu.hour_weight) formatted += `<p><strong>Hour:</strong> ${data.chenggu.hour_weight}</p>`;
+                if (data.chenggu.total_weight) formatted += `<p><strong>Total Weight:</strong> ${data.chenggu.total_weight}</p>`;
+                formatted += `<p style="margin: 8px 0; line-height: 1.6;"><strong>Fortune Reading:</strong> ${data.chenggu.description_en || data.chenggu.description}</p>`;
+                formatted += `</div>`;
+            }
+            
+            // Favorable Elements
+            if (data.xiyongshen && data.xiyongshen.xiyongshen_desc_en) {
+                formatted += `<div style="margin-bottom: 20px;">`;
+                formatted += `<h4 style="color: #667eea; margin-bottom: 10px;">Favorable Elements</h4>`;
+                formatted += `<p style="margin: 8px 0; line-height: 1.6;">${data.xiyongshen.xiyongshen_desc_en}</p>`;
+                formatted += `</div>`;
+            }
+            
+            // Base Information
+            if (data.base_info) {
+                formatted += `<div style="margin-bottom: 20px;">`;
+                formatted += `<h4 style="color: #667eea; margin-bottom: 10px;">Basic Information</h4>`;
+                if (data.base_info.gongli) formatted += `<p><strong>Solar Date:</strong> ${data.base_info.gongli}</p>`;
+                if (data.base_info.nongli) formatted += `<p><strong>Lunar Date:</strong> ${data.base_info.nongli}</p>`;
+                if (data.base_info.zhengge) formatted += `<p><strong>Configuration:</strong> ${data.base_info.zhengge}</p>`;
+                if (data.base_info.wuxing_xiji) formatted += `<p><strong>Five Elements:</strong> ${data.base_info.wuxing_xiji}</p>`;
+                formatted += `</div>`;
+            }
+            
+            // Eight Characters Information  
+            if (data.bazi_info) {
+                formatted += `<div style="margin-bottom: 20px;">`;
+                formatted += `<h4 style="color: #667eea; margin-bottom: 10px;">Eight Characters</h4>`;
+                if (data.bazi_info.bazi) formatted += `<p><strong>Four Pillars:</strong> ${data.bazi_info.bazi}</p>`;
+                if (data.bazi_info.na_yin) formatted += `<p><strong>Nayin:</strong> ${data.bazi_info.na_yin}</p>`;
+                formatted += `</div>`;
+            }
+            
+            return formatted;
+        }
+    </script>
+</body>
+</html>
