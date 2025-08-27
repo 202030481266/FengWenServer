@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 from .database import get_db, AstrologyRecord
 from .admin_models import Product, TranslationPair as DBTranslationPair
-from .models import UserInfoRequest, UserInfoWithVerificationRequest, EmailRequest, VerificationRequest, ProductUpdate, TranslationPairUpdate, TranslationPair as TranslationPairRequest
+from .models import UserInfoRequest, UserInfoWithVerificationRequest, EmailRequest, VerificationRequest, ProductUpdate, \
+    TranslationPairUpdate, TranslationPair as TranslationPairRequest
 from .email_service import EmailService
 from .shopify_service import ShopifyPaymentService
 from .astrology_service import AstrologyService
@@ -33,11 +34,12 @@ router = APIRouter()
 # Admin authentication
 ADMIN_PASSWORD = "admin123"
 
+
 def verify_admin_auth(authorization: Optional[str] = Header(None)):
     """Simple admin authentication"""
     if not authorization:
         raise HTTPException(status_code=401, detail="Authentication required")
-    
+
     try:
         scheme, credentials = authorization.split()
         if scheme.lower() != "bearer" or credentials != ADMIN_PASSWORD:
@@ -45,11 +47,13 @@ def verify_admin_auth(authorization: Optional[str] = Header(None)):
     except ValueError:
         raise HTTPException(status_code=401, detail="Invalid authentication format")
 
+
 # Simple security functions
 ALLOWED_DOMAINS = [
     "crystal-divination.com", "tarot-reading.com", "fengshui-guide.com",
     "example.com", "localhost", "127.0.0.1"
 ]
+
 
 def validate_url(url: str) -> bool:
     """Simple URL validation to prevent open redirects"""
@@ -64,16 +68,19 @@ def validate_url(url: str) -> bool:
     except:
         return False
 
+
 def clean_text(text: str) -> str:
     """Clean text to prevent XSS"""
     if not text:
         return ""
     return html.escape(text.strip()[:200])
 
+
 # Initialize services
 email_service = EmailService()
 shopify_service = ShopifyPaymentService()
 astrology_service = AstrologyService()
+
 
 @router.post("/submit-info")
 async def submit_user_info(user_info: UserInfoRequest, db: Session = Depends(get_db)):
@@ -84,17 +91,18 @@ async def submit_user_info(user_info: UserInfoRequest, db: Session = Depends(get
             user_info.email, user_info.name, user_info.birth_date,
             user_info.birth_time, user_info.gender, False, db
         )
-        
+
         return {
             "record_id": record.id,
             "lunar_date": record.lunar_date,
             "preview_result": "Your personalized reading is being prepared...",
             "message": "Please verify your email to see complete results."
         }
-        
+
     except Exception as e:
         logger.error(f"Error in submit_user_info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/send-verification")
 async def send_verification_code(request: EmailRequest):
@@ -109,27 +117,28 @@ async def send_verification_code(request: EmailRequest):
         print(f"Error sending verification: {e}")
         raise HTTPException(status_code=500, detail="Failed to send verification code")
 
+
 @router.post("/verify-email")
 async def verify_email(request: VerificationRequest, db: Session = Depends(get_db)):
     """Verify email and provide full results"""
     try:
         if not email_service.verify_code(request.email, request.code):
             raise HTTPException(status_code=400, detail="Invalid verification code")
-        
+
         record = db.query(AstrologyRecord).filter(
             AstrologyRecord.email == request.email
         ).order_by(AstrologyRecord.created_at.desc()).first()
-        
+
         if not record:
             raise HTTPException(status_code=404, detail="User record not found")
-        
+
         response = await astrology_service.process_complete_astrology(record, db)
         return {
             "astrology_results": response["astrology_results"],
             "checkout_url": response["shopify_url"],
             "message": "Complete payment to receive your full reading via email."
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -273,12 +282,13 @@ async def resend_result_email(
         logger.error(f"Error resending email: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Public products endpoint for frontend
 @router.get("/products")
 async def get_products(db: Session = Depends(get_db)):
     """Get all products, ensure we have exactly 3"""
     products = db.query(Product).all()
-    
+
     # Ensure we have exactly 3 products
     while len(products) < 3:
         new_product = Product(
@@ -288,13 +298,13 @@ async def get_products(db: Session = Depends(get_db)):
         )
         db.add(new_product)
         products.append(new_product)
-    
+
     try:
         db.commit()
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create products")
-    
+
     # Return serialized products with clean data
     result = []
     for product in products[:3]:
@@ -304,7 +314,7 @@ async def get_products(db: Session = Depends(get_db)):
             "image_url": clean_text(product.image_url or ""),
             "redirect_url": product.redirect_url if validate_url(product.redirect_url) else "#"
         })
-    
+
     return result  # Return only first 3
 
 
@@ -318,14 +328,17 @@ async def get_admin_page(_: str = Depends(verify_admin_auth)):
     except FileNotFoundError:
         raise HTTPException(status_code=500, detail="Admin template not found")
 
+
 @router.get("/admin/translations")
 async def get_translations(db: Session = Depends(get_db), _: str = Depends(verify_admin_auth)):
     """Get all translation pairs"""
     translations = db.query(DBTranslationPair).all()
     return translations
 
+
 @router.post("/admin/translations")
-async def add_translation(translation: TranslationPairRequest, db: Session = Depends(get_db), _: str = Depends(verify_admin_auth)):
+async def add_translation(translation: TranslationPairRequest, db: Session = Depends(get_db),
+                          _: str = Depends(verify_admin_auth)):
     """Add translation pair"""
     new_translation = DBTranslationPair(
         chinese_text=clean_text(translation.chinese_text),
@@ -339,13 +352,15 @@ async def add_translation(translation: TranslationPairRequest, db: Session = Dep
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to add translation")
 
+
 @router.put("/admin/translations/{translation_id}")
-async def update_translation(translation_id: int, translation: TranslationPairUpdate, db: Session = Depends(get_db), _: str = Depends(verify_admin_auth)):
+async def update_translation(translation_id: int, translation: TranslationPairUpdate, db: Session = Depends(get_db),
+                             _: str = Depends(verify_admin_auth)):
     """Update translation pair"""
     existing = db.query(DBTranslationPair).filter(DBTranslationPair.id == translation_id).first()
     if not existing:
         raise HTTPException(status_code=404, detail="Translation not found")
-    
+
     existing.chinese_text = clean_text(translation.chinese_text)
     existing.english_text = clean_text(translation.english_text)
     try:
@@ -355,40 +370,43 @@ async def update_translation(translation_id: int, translation: TranslationPairUp
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update translation")
 
+
 @router.post("/verify-email-first")
 async def verify_email_first(request: VerificationRequest):
     """Step 1: Verify email and verification code before form submission"""
     logger.info(f"[API] Email verification started for: {request.email}")
-    
+
     if not email_service.verify_code(request.email, request.code):
         logger.warning(f"[API] Invalid verification code for email: {request.email}")
         raise HTTPException(status_code=400, detail="Invalid verification code")
-    
+
     logger.info(f"[API] Email verification successful for: {request.email}")
     return {"message": "Email verified successfully", "verified": True}
+
 
 @router.post("/astrology/calculate")
 async def calculate_astrology(user_info: UserInfoRequest, db: Session = Depends(get_db)):
     """Step 2: Process complete form submission (email must be pre-verified)"""
     logger.info(f"[API] Astrology calculation started for email: {user_info.email}")
-    
+
     if not email_service.is_email_recently_verified(user_info.email):
         logger.warning(f"[API] Email not verified or expired for: {user_info.email}")
         raise HTTPException(status_code=400, detail="Please verify your email first")
-    
+
     try:
         record = astrology_service.create_record(
             user_info.email, user_info.name, user_info.birth_date,
             user_info.birth_time, user_info.gender, False, db
         )
-        
+
         return await astrology_service.process_complete_astrology(record, db)
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error in calculate_astrology: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # Debug endpoints for testing
 @router.get("/debug/verification-code/{email}")

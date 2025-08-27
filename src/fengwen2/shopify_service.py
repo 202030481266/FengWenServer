@@ -38,14 +38,8 @@ class ShopifyPaymentService:
     async def create_checkout_url(self, user_email: str, record_id: int) -> Optional[str]:
         """Create a proper checkout session with metadata"""
         try:
-            # 方法 1: 使用 Admin API 创建 Draft Order（推荐）
             draft_order_url = await self._create_draft_order(user_email, record_id)
-            if draft_order_url:
-                return draft_order_url
-
-            # 方法 2: 使用 Cart permalink with attributes
-            return self._create_cart_permalink(user_email, record_id)
-
+            return draft_order_url
         except Exception as e:
             logger.error(f"Error creating checkout URL: {e}")
             return None
@@ -96,28 +90,12 @@ class ShopifyPaymentService:
             logger.error(f"Error creating draft order: {e}")
             return None
 
-    def _create_cart_permalink(self, user_email: str, record_id: int) -> str:
-        """Create a cart permalink with attributes (fallback method)"""
-        # 使用 Cart Permalink API
-        # Format: https://shop.com/cart/{variant_id}:{quantity}?attributes[record_id]={record_id}
-        base_url = f"https://{self.shop_domain}/cart"
-
-        # 添加产品到购物车
-        cart_params = f"{self.product_variant_id}:1"
-
-        # 添加属性
-        attributes = f"?checkout[email]={user_email}&attributes[record_id]={record_id}"
-
-        checkout_url = f"{base_url}/{cart_params}{attributes}"
-        logger.info(f"Created cart permalink for record {record_id}")
-        return checkout_url
-
     def verify_webhook(self, data: bytes, signature: str) -> bool:
         """Verify Shopify webhook signature"""
         try:
             if not self.webhook_secret:
                 logger.warning("Webhook secret not configured")
-                return True  # 开发环境暂时跳过验证
+                return True
 
             calculated_hmac = base64.b64encode(
                 hmac.new(

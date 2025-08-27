@@ -7,23 +7,24 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 class TranslationService:
     """Simple translation service for Chinese astrology content"""
-    
+
     def __init__(self):
         self.api_key = os.getenv("DEEPSEEK_API_KEY")
         self.api_url = os.getenv("DEEPSEEK_API_URL", "https://api.lkeap.cloud.tencent.com/v1/chat/completions")
         self.model = os.getenv("DEEPSEEK_MODEL", "deepseek-v3-0324")
-    
+
     @staticmethod
     def has_chinese(text: str) -> bool:
         """Check if text contains Chinese characters"""
         return any('\u4e00' <= c <= '\u9fff' for c in text)
-    
+
     def find_chinese_texts(self, obj: Any) -> List[str]:
         """Find all Chinese text in JSON structure"""
         texts = []
-        
+
         def extract(data):
             if isinstance(data, dict):
                 for key, value in data.items():
@@ -41,19 +42,19 @@ class TranslationService:
                         texts.append(line)
                 if self.has_chinese(data.strip()):
                     texts.append(data.strip())
-        
+
         extract(obj)
         return list(dict.fromkeys(text for text in texts if text.strip()))
-    
+
     async def batch_translate(self, texts: List[str]) -> Dict[str, str]:
         """Translate multiple texts in one API call"""
         if not texts:
             return {}
-        
+
         # Create numbered list
-        numbered = [f"{i+1}. {text}" for i, text in enumerate(texts)]
+        numbered = [f"{i + 1}. {text}" for i, text in enumerate(texts)]
         batch_text = "\n\n".join(numbered)
-        
+
         system_prompt = """You are a professional Chinese-English translator for traditional astrology.
 
 RULES:
@@ -73,7 +74,7 @@ Terms:
 - 八字 = Eight Characters
 
 Only return numbered translations."""
-        
+
         payload = {
             "model": self.model,
             "messages": [
@@ -84,18 +85,18 @@ Only return numbered translations."""
             "top_p": 0.8,
             "max_tokens": 2048
         }
-        
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-        
+
         try:
             async with httpx.AsyncClient(timeout=90.0) as client:
                 response = await client.post(self.api_url, headers=headers, json=payload)
                 response.raise_for_status()
                 result = response.json()["choices"][0]["message"]["content"]
-                
+
                 # Parse results
                 translations = {}
                 for line in result.split('\n'):
@@ -105,13 +106,13 @@ Only return numbered translations."""
                         translation = match.group(2).strip()
                         if index < len(texts):
                             translations[texts[index]] = translation
-                
+
                 return translations
-                
+
         except Exception as e:
             print(f"Translation error: {e}")
             return {text: text for text in texts}  # Return originals on error
-    
+
     def apply_translations(self, obj: Any, translations: Dict[str, str]) -> Any:
         """Apply translations to JSON structure"""
         if isinstance(obj, dict):
@@ -125,53 +126,53 @@ Only return numbered translations."""
         elif isinstance(obj, str) and self.has_chinese(obj):
             if obj.strip() in translations:
                 return translations[obj.strip()]
-            
+
             lines = obj.split('\n')
             translated_lines = [translations.get(line.strip(), line) for line in lines]
-            
+
             if translated_lines != [line.strip() for line in lines]:
                 return '\n'.join(translated_lines)
             return obj
         return obj
-    
+
     async def translate_json(self, data: dict) -> dict:
         """Translate entire JSON structure while preserving format"""
         print("[TRANSLATOR] Starting translation...")
-        
+
         # Find all Chinese texts
         chinese_texts = self.find_chinese_texts(data)
         print(f"[TRANSLATOR] Found {len(chinese_texts)} Chinese texts")
-        
+
         if not chinese_texts:
             return data
-        
+
         # Translate all at once
         translations = await self.batch_translate(chinese_texts)
         print(f"[TRANSLATOR] Translated {len(translations)} texts")
-        
+
         # Apply translations
         translated_data = self.apply_translations(data, translations)
         print("[TRANSLATOR] Translation complete")
-        
+
         return translated_data
-    
+
     async def extract_and_translate_astrology_result(self, astrology_data: dict, original_name: str = None) -> dict:
         """Main translation entry point"""
         if not astrology_data:
             return None
-        
+
         # Replace names if provided
         if original_name:
             astrology_data = self._replace_names(astrology_data, original_name)
-        
+
         # Translate everything
         return await self.translate_json(astrology_data)
-    
+
     def _replace_names(self, data: dict, name: str) -> dict:
         """Replace name fields with original name"""
         import copy
         result = copy.deepcopy(data)
-        
+
         def replace_in_obj(obj):
             if isinstance(obj, dict):
                 for key, value in obj.items():
@@ -182,6 +183,6 @@ Only return numbered translations."""
             elif isinstance(obj, list):
                 for item in obj:
                     replace_in_obj(item)
-        
+
         replace_in_obj(result)
         return result
