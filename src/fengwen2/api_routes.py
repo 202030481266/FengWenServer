@@ -1,14 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
-from fastapi.responses import HTMLResponse
-from sqlalchemy.orm import Session
-from datetime import datetime
-from typing import List, Optional, Dict
-import json
 import html
+import json
 import logging
-from urllib.parse import urlparse
-import secrets
 import os
+from datetime import datetime
+from typing import Optional, Dict
+from urllib.parse import urlparse
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi.responses import HTMLResponse, JSONResponse
+from sqlalchemy.orm import Session
 
 # Configure logging
 logging.basicConfig(
@@ -23,11 +23,23 @@ logger = logging.getLogger(__name__)
 
 from .database import get_db, AstrologyRecord
 from .admin_models import Product, TranslationPair as DBTranslationPair
-from .models import UserInfoRequest, UserInfoWithVerificationRequest, EmailRequest, VerificationRequest, ProductUpdate, \
-    TranslationPairUpdate, TranslationPair as TranslationPairRequest
+from .models import UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate, TranslationPair as TranslationPairRequest
 from .email_service import EmailService
 from .shopify_service import ShopifyPaymentService
 from .astrology_service import AstrologyService
+
+import asyncio
+from .token_service import TokenService, ScreenshotService, ReportEmailService
+
+logger = logging.getLogger(__name__)
+
+# 初始化新服务
+email_service = EmailService()
+shopify_service = ShopifyPaymentService()
+astrology_service = AstrologyService()
+token_service = TokenService()
+screenshot_service = ScreenshotService()
+report_email_service = ReportEmailService(email_service)
 
 router = APIRouter()
 
@@ -74,12 +86,6 @@ def clean_text(text: str) -> str:
     if not text:
         return ""
     return html.escape(text.strip()[:200])
-
-
-# Initialize services
-email_service = EmailService()
-shopify_service = ShopifyPaymentService()
-astrology_service = AstrologyService()
 
 
 @router.post("/submit-info")
@@ -419,3 +425,262 @@ async def get_verification_code_for_testing(email: str, _: str = Depends(verify_
     else:
         logger.warning(f"[DEBUG] No verification code found for {email}")
         raise HTTPException(status_code=404, detail="No verification code found for this email")
+
+
+# 定期清理过期token的后台任务
+async def cleanup_tokens_task():
+    """后台任务：定期清理过期tokens"""
+    while True:
+        await asyncio.sleep(3600)  # 每小时清理一次
+        token_service.cleanup_expired_tokens()
+
+
+# 启动后台任务（在FastAPI启动时调用）
+@router.on_event("startup")
+async def startup_event():
+    asyncio.create_task(cleanup_tokens_task())
+    logger.info("Started background token cleanup task")
+
+
+@router.on_event("shutdown")
+async def shutdown_event():
+    await screenshot_service.close()
+    logger.info("Closed screenshot service")
+
+
+# 新增：验证token端点（供前端调用）
+@router.get("/api/verify-report-token")
+async def verify_report_token(
+        token: str,
+        record_id: int,
+        db: Session = Depends(get_db)
+):
+    """
+    验证报告查看token
+    前端通过此端点验证token是否有效，有效则显示完整报告
+    """
+    try:
+        # 验证token
+        is_valid, token_data = token_service.verify_token(token)
+
+        if not is_valid:
+            logger.warning(f"Invalid token attempt for record {record_id}")
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+        # 验证record_id匹配
+        if token_data["record_id"] != record_id:
+            logger.warning(f"Token record mismatch: expected {token_data['record_id']}, got {record_id}")
+            raise HTTPException(status_code=401, detail="Token does not match record")
+
+        # 获取记录信息
+        record = db.query(AstrologyRecord).filter(
+            AstrologyRecord.id == record_id
+        ).first()
+
+        if not record:
+            raise HTTPException(status_code=404, detail="Record not found")
+
+        # 确认已支付
+        if not record.is_purchased:
+            raise HTTPException(status_code=402, detail="Payment required")
+
+        logger.info(f"Token verified successfully for record {record_id}")
+
+        # 返回完整的占星数据
+        return {
+            "valid": True,
+            "record_id": record_id,
+            "full_access": True,
+            "astrology_data": {
+                "name": record.name,
+                "birth_date": record.birth_date,
+                "birth_time": record.birth_time,
+                "lunar_date": record.lunar_date,
+                "full_result": record.full_result_en,
+                "full_result_cn": record.full_result_cn,
+                "bazi_info": record.bazi_info,
+                "purchase_date": record.purchase_date.isoformat() if record.purchase_date else None
+            },
+            "message": "Full access granted"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error verifying token: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# 更新的Webhook处理，加入截图和发送流程
+@router.post("/webhook/shopify-enhanced")
+async def shopify_webhook_enhanced(request: Request, db: Session = Depends(get_db)):
+    """增强版Shopify webhook处理，包含截图功能"""
+    try:
+        body = await request.body()
+        signature = request.headers.get("X-Shopify-Hmac-Sha256", "")
+
+        logger.info(f"[WEBHOOK-ENHANCED] Received Shopify webhook")
+
+        # 验证webhook（生产环境）
+        if os.getenv("ENVIRONMENT") == "production":
+            if not shopify_service.verify_webhook(body, signature):
+                logger.error("[WEBHOOK-ENHANCED] Invalid webhook signature")
+                raise HTTPException(status_code=401, detail="Invalid signature")
+
+        webhook_data = json.loads(body)
+        webhook_topic = request.headers.get("X-Shopify-Topic", "")
+
+        if webhook_topic not in ["orders/paid", "orders/fulfilled"]:
+            return {"status": "ignored"}
+
+        # 提取record_id
+        record_id = shopify_service.extract_record_id_from_order(webhook_data)
+
+        if not record_id:
+            # 尝试通过邮箱查找
+            customer_email = webhook_data.get("email") or webhook_data.get("customer", {}).get("email")
+            if customer_email:
+                record = db.query(AstrologyRecord).filter(
+                    AstrologyRecord.email == customer_email,
+                    AstrologyRecord.is_purchased == False
+                ).order_by(AstrologyRecord.created_at.desc()).first()
+
+                if record:
+                    record_id = record.id
+
+        if not record_id:
+            logger.error(f"[WEBHOOK-ENHANCED] Cannot identify record for order {webhook_data.get('id')}")
+            return {"status": "error", "message": "Record not found"}
+
+        # 获取记录
+        record = db.query(AstrologyRecord).filter(AstrologyRecord.id == record_id).first()
+
+        if not record:
+            logger.error(f"[WEBHOOK-ENHANCED] Record {record_id} not found")
+            return {"status": "error", "message": "Record not found"}
+
+        # 检查是否已处理
+        if record.is_purchased and record.shopify_order_id:
+            logger.info(f"[WEBHOOK-ENHANCED] Order already processed for record {record_id}")
+            return {"status": "already_processed"}
+
+        # 更新购买状态
+        record.is_purchased = True
+        record.shopify_order_id = str(webhook_data.get("id"))
+        record.purchase_date = datetime.now()
+
+        try:
+            db.commit()
+            logger.info(f"[WEBHOOK-ENHANCED] Updated purchase status for record {record_id}")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[WEBHOOK-ENHANCED] Database error: {e}")
+            raise HTTPException(status_code=500, detail="Database error")
+
+        # 异步处理截图和发送邮件（不阻塞webhook响应）
+        asyncio.create_task(
+            process_report_delivery(record_id, record.email, record.name)
+        )
+
+        return {"status": "success", "message": "Processing report delivery"}
+
+    except Exception as e:
+        logger.error(f"[WEBHOOK-ENHANCED] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def process_report_delivery(record_id: int, email: str, name: str):
+    """异步处理报告生成和发送"""
+    try:
+        logger.info(f"Starting report delivery for record {record_id}")
+
+        # 使用新的报告邮件服务
+        success = await report_email_service.process_payment_completion(
+            record_id=record_id,
+            email=email,
+            name=name
+        )
+
+        if success:
+            logger.info(f"Report delivered successfully to {email}")
+        else:
+            logger.error(f"Failed to deliver report to {email}")
+            # 可以加入重试队列或发送通知给管理员
+
+    except Exception as e:
+        logger.error(f"Error in report delivery: {e}")
+
+
+# 管理端点：手动触发报告生成
+@router.post("/admin/generate-report")
+async def manually_generate_report(
+        request: dict,
+        db: Session = Depends(get_db),
+        _: str = Depends(verify_admin_auth)
+):
+    """手动生成并发送报告（管理员功能）"""
+    record_id = request.get("record_id")
+
+    if not record_id:
+        raise HTTPException(status_code=400, detail="record_id required")
+
+    record = db.query(AstrologyRecord).filter(
+        AstrologyRecord.id == record_id
+    ).first()
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    if not record.is_purchased:
+        raise HTTPException(status_code=400, detail="Record not purchased")
+
+    try:
+        # 生成并发送报告
+        success = await report_email_service.process_payment_completion(
+            record_id=record.id,
+            email=record.email,
+            name=record.name
+        )
+
+        if success:
+            return {"message": f"Report sent to {record.email}"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to generate report")
+
+    except Exception as e:
+        logger.error(f"Error generating report: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# 调试端点：获取token状态
+@router.get("/admin/token-status")
+async def get_token_status(_: str = Depends(verify_admin_auth)):
+    """获取所有token的状态（管理员功能）"""
+    tokens_info = []
+    for token, data in token_service.tokens.items():
+        tokens_info.append({
+            "token": token[:10] + "...",  # 只显示前10个字符
+            "record_id": data["record_id"],
+            "email": data["email"],
+            "created_at": data["created_at"].isoformat(),
+            "expires_at": data["expires_at"].isoformat(),
+            "used": data["used"],
+            "expired": datetime.now() > data["expires_at"]
+        })
+
+    return {
+        "total_tokens": len(tokens_info),
+        "tokens": tokens_info
+    }
+
+
+# 健康检查端点
+@router.get("/health/screenshot-service")
+async def check_screenshot_service():
+    """检查截图服务是否正常"""
+    try:
+        await screenshot_service.initialize()
+        return {"status": "healthy", "browser": "initialized"}
+    except Exception as e:
+        logger.error(f"Screenshot service unhealthy: {e}")
+        return {"status": "unhealthy", "error": str(e)}

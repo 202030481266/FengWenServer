@@ -9,6 +9,7 @@ src/fengwen2/email_service.py
 src/fengwen2/main.py
 src/fengwen2/models.py
 src/fengwen2/shopify_service.py
+src/fengwen2/token_service.py
 src/fengwen2/translation.py
 src/fengwen2.egg-info/PKG-INFO
 src/fengwen2.egg-info/SOURCES.txt
