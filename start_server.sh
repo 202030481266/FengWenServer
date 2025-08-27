@@ -3,7 +3,7 @@
 set -e
 
 # Change to project directory
-cd /home/callmeplayxcpc/deploy/fengwen2
+cd /home/ubuntu/FengWenServer/
 
 # Check if .env file exists
 if [ ! -f ".env" ]; then
@@ -28,7 +28,7 @@ print('Database setup complete!')
 
 # Start server in background
 echo "🚀 Starting server in background..."
-nohup uv run uvicorn src.fengwen2.main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
+nohup uv run uvicorn src.fengwen2.main:app --host 127.0.0.1 --port 8000 > server.log 2>&1 &
 echo "Server started in background. PID: $!"
 echo "Logs: tail -f server.log"
 echo "🌐 Server accessible at: http://localhost:8000"
