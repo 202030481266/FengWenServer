@@ -5,16 +5,11 @@ from fastapi.responses import HTMLResponse
 import os
 from dotenv import load_dotenv
 
-# fastapi cache
-from fastapi_cache import FastAPICache
-from fastapi_cache.backends.redis import RedisBackend
-from redis import asyncio as aioredis
-
 import logging
 from contextlib import asynccontextmanager
-
 from .api_routes import router
 from .service_manager import get_service_manager
+from .cache_config import init_cache
 
 # app logger
 logging.basicConfig(
@@ -35,6 +30,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up the application...")
     service_manager = get_service_manager()
     try:
+        await init_cache()
         await service_manager.startup()
         logger.info("All services started successfully")
     except Exception as e:
@@ -55,7 +51,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Astrology Fortune API",
     version="1.0.0",
-    description="Simple astrology service backend", 
+    description="Astrology service backend", 
     lifespan=lifespan
 )
 

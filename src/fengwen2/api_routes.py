@@ -7,13 +7,17 @@ from typing import Optional, Dict
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
+from fastapi_cache import FastAPICache
+from fastapi_cache.decorator import cache
 from sqlalchemy.orm import Session
 
 from .database import get_db, AstrologyRecord
 from .admin_models import Product, TranslationPair as DBTranslationPair
 from .models import UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate, TranslationPair as TranslationPairRequest
 from .service_manager import get_service_manager
+from .cache_config import astrology_cache_key_builder, CACHE_TTL, CacheManager
+
 
 import asyncio
 
@@ -389,7 +393,6 @@ async def verify_email_first(
     request: VerificationRequest,
     email_service = Depends(get_email_service)
 ):
-    """Step 1: Verify email and verification code before form submission"""
     logger.info(f"[API] Email verification started for: {request.email}")
 
     if not email_service.verify_code(request.email, request.code):
@@ -401,13 +404,13 @@ async def verify_email_first(
 
 
 @router.post("/astrology/calculate")
+@cache(expire=CACHE_TTL, key_builder=astrology_cache_key_builder)
 async def calculate_astrology(
     user_info: UserInfoRequest, 
     db: Session = Depends(get_db),
     email_service = Depends(get_email_service),
     astrology_service = Depends(get_astrology_service)
 ):
-    """Step 2: Process complete form submission (email must be pre-verified)"""
     logger.info(f"[API] Astrology calculation started for email: {user_info.email}")
 
     if not email_service.is_email_recently_verified(user_info.email):
@@ -651,3 +654,52 @@ async def get_token_status(_: str = Depends(verify_admin_auth), token_service = 
         "total_tokens": len(tokens_info),
         "tokens": tokens_info
     }
+
+
+@router.post("/admin/cache/invalidate")
+async def invalidate_cache(
+    request: Dict,
+    _: str = Depends(verify_admin_auth)
+):
+    """Invalidate cache for a specific email or all cache"""
+    email = request.get("email")
+    clear_all = request.get("clear_all", False)
+    
+    try:
+        if clear_all:
+            await CacheManager.clear_all_cache()
+            return {"message": "All cache cleared"}
+        elif email:
+            await CacheManager.invalidate_user_cache(email)
+            return {"message": f"Cache cleared for {email}"}
+        else:
+            raise HTTPException(status_code=400, detail="Provide email or set clear_all=true")
+    except Exception as e:
+        logger.error(f"Error managing cache: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/admin/cache/stats")
+async def get_cache_stats(_: str = Depends(verify_admin_auth)):
+    """Get Redis cache statistics"""
+    try:
+        backend = FastAPICache.get_backend()
+        info = await backend.client.info("stats")
+        dbsize = await backend.client.dbsize()
+        
+        # Count astrology cache keys
+        astrology_keys = 0
+        async for _ in backend.client.scan_iter(match="astrology-cache:*"):
+            astrology_keys += 1
+        
+        return {
+            "total_keys": dbsize,
+            "astrology_cache_keys": astrology_keys,
+            "hits": info.get("keyspace_hits", 0),
+            "misses": info.get("keyspace_misses", 0),
+            "hit_rate": round(info.get("keyspace_hits", 0) / 
+                            (info.get("keyspace_hits", 0) + info.get("keyspace_misses", 1)) * 100, 2)
+        }
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
