@@ -8,6 +8,11 @@ from dotenv import load_dotenv
 from tencentcloud.common import credential
 from tencentcloud.common.exception.tencent_cloud_sdk_exception import TencentCloudSDKException
 from tencentcloud.ses.v20201002 import ses_client, models
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+import base64
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -129,4 +134,46 @@ class EmailService:
 
         except TencentCloudSDKException as err:
             logger.error(f"[EMAIL] Send astrology result error for {email}: {err}")
+            return False
+
+    async def send_email_with_attachments(
+            self,
+            to_email: str,
+            subject: str,
+            body: str,
+            attachments: list
+    ) -> bool:
+        """发送带附件的邮件"""
+        try:
+            # 创建消息
+            msg = MIMEMultipart()
+            msg['From'] = f"noreply@{self.domain}"
+            msg['To'] = to_email
+            msg['Subject'] = subject
+
+            # 添加正文
+            msg.attach(MIMEText(body, 'plain'))
+
+            # 添加附件
+            for attachment in attachments:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(attachment['content'])
+                encoders.encode_base64(part)
+                part.add_header(
+                    'Content-Disposition',
+                    f'attachment; filename={attachment["filename"]}'
+                )
+                msg.attach(part)
+
+            # 使用腾讯云SES的SendRawEmail API
+            req = models.SendRawEmailRequest()
+            req.FromEmailAddress = msg['From']
+            req.Destinations = [to_email]
+            req.RawMessage = base64.b64encode(msg.as_bytes()).decode()
+
+            resp = self.client.SendRawEmail(req)
+            return True
+
+        except Exception as e:
+            logger.error(f"Error sending email with attachments: {e}")
             return False

@@ -448,7 +448,6 @@ async def shutdown_event():
     logger.info("Closed screenshot service")
 
 
-# 新增：验证token端点（供前端调用）
 @router.get("/api/verify-report-token")
 async def verify_report_token(
         token: str,
