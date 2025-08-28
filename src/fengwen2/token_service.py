@@ -1,19 +1,16 @@
-# token_service.py
+import asyncio
+import base64
+import hashlib
+import logging
 import os
 import secrets
-import hashlib
-import json
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Tuple
-import logging
-import asyncio
-from urllib.parse import urlencode
-import base64
-
-from playwright.async_api import async_playwright, Browser, Page
-from PIL import Image
 from io import BytesIO
+from typing import Optional, Dict, Tuple
+
 import httpx
+from PIL import Image
+from playwright.async_api import async_playwright, Browser, Page
 
 logger = logging.getLogger(__name__)
 

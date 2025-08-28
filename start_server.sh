@@ -5,7 +5,7 @@ set -e
 # Change to project directory
 cd /home/ubuntu/FengWenServer/
 
-# Check if .env file exists
+# Check if ..env file exists
 if [ ! -f ".env" ]; then
     echo "❌ Error: .env file not found. Please create .env file with required credentials."
     exit 1
