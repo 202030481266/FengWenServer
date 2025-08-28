@@ -10,41 +10,19 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('astrology_backend.log')
-    ]
-)
-logger = logging.getLogger(__name__)
-
 from .database import get_db, AstrologyRecord
 from .admin_models import Product, TranslationPair as DBTranslationPair
 from .models import UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate, TranslationPair as TranslationPairRequest
-from .email_service import EmailService
-from .shopify_service import ShopifyPaymentService
-from .astrology_service import AstrologyService
+from .service_manager import get_service_manager
 
 import asyncio
-from .token_service import TokenService, ScreenshotService, ReportEmailService
 
 logger = logging.getLogger(__name__)
-
-# 初始化新服务
-email_service = EmailService()
-shopify_service = ShopifyPaymentService()
-astrology_service = AstrologyService()
-token_service = TokenService()
-screenshot_service = ScreenshotService()
-report_email_service = ReportEmailService(email_service)
 
 router = APIRouter()
 
 # Admin authentication
-ADMIN_PASSWORD = "admin123"
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
 
 def verify_admin_auth(authorization: Optional[str] = Header(None)):
@@ -87,9 +65,32 @@ def clean_text(text: str) -> str:
         return ""
     return html.escape(text.strip()[:200])
 
+# use dependency injection
+def get_email_service():
+    return get_service_manager().get_email_service()
+
+def get_shopify_service():
+    return get_service_manager().get_shopify_service()
+
+def get_astrology_service():
+    return get_service_manager().get_astrology_service()
+
+def get_token_service():
+    return get_service_manager().get_token_service()
+
+def get_screenshot_service():
+    return get_service_manager().get_screenshot_service()
+
+def get_report_email_service():
+    return get_service_manager().get_report_email_service()
+
 
 @router.post("/submit-info")
-async def submit_user_info(user_info: UserInfoRequest, db: Session = Depends(get_db)):
+async def submit_user_info(
+    user_info: UserInfoRequest, 
+    db: Session = Depends(get_db),
+    astrology_service = Depends(get_astrology_service)
+):
     """Submit user info and get preview result"""
     logger.info(f"[API] User info submission started for email: {user_info.email}")
     try:
@@ -111,7 +112,10 @@ async def submit_user_info(user_info: UserInfoRequest, db: Session = Depends(get
 
 
 @router.post("/send-verification")
-async def send_verification_code(request: EmailRequest):
+async def send_verification_code(
+    request: EmailRequest,
+    email_service = Depends(get_email_service)
+):
     """Send email verification code"""
     try:
         verification_code = await email_service.send_verification_email(request.email)
@@ -120,12 +124,17 @@ async def send_verification_code(request: EmailRequest):
         else:
             raise HTTPException(status_code=500, detail="Failed to send verification code")
     except Exception as e:
-        print(f"Error sending verification: {e}")
+        logger.error(f"Error sending verification: {e}")
         raise HTTPException(status_code=500, detail="Failed to send verification code")
 
 
 @router.post("/verify-email")
-async def verify_email(request: VerificationRequest, db: Session = Depends(get_db)):
+async def verify_email(
+    request: VerificationRequest, 
+    db: Session = Depends(get_db),
+    email_service = Depends(get_email_service),
+    astrology_service = Depends(get_astrology_service)
+):
     """Verify email and provide full results"""
     try:
         if not email_service.verify_code(request.email, request.code):
@@ -152,10 +161,13 @@ async def verify_email(request: VerificationRequest, db: Session = Depends(get_d
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# 在 api_routes.py 中改进 webhook 处理
-
 @router.post("/webhook/shopify")
-async def shopify_webhook(request: Request, db: Session = Depends(get_db)):
+async def shopify_webhook(
+    request: Request, 
+    db: Session = Depends(get_db),
+    shopify_service = Depends(get_shopify_service),
+    email_service = Depends(get_email_service)
+):
     """Handle Shopify payment webhooks with better error handling"""
     try:
         body = await request.body()
@@ -177,11 +189,10 @@ async def shopify_webhook(request: Request, db: Session = Depends(get_db)):
             logger.info(f"[WEBHOOK] Ignoring webhook topic: {webhook_topic}")
             return {"status": "ignored"}
 
-        # 提取 record ID
+        # extract the record ID
         record_id = shopify_service.extract_record_id_from_order(webhook_data)
 
         if not record_id:
-            # 尝试通过客户邮箱查找最近的记录
             customer_email = webhook_data.get("email") or webhook_data.get("customer", {}).get("email")
 
             if customer_email:
@@ -199,12 +210,11 @@ async def shopify_webhook(request: Request, db: Session = Depends(get_db)):
             record = db.query(AstrologyRecord).filter(AstrologyRecord.id == record_id).first()
 
             if record:
-                # 检查是否已经处理过
                 if record.is_purchased and record.shopify_order_id:
                     logger.info(f"[WEBHOOK] Order already processed for record {record_id}")
                     return {"status": "already_processed"}
 
-                # 更新购买状态
+                # update order status
                 record.is_purchased = True
                 record.shopify_order_id = str(webhook_data.get("id"))
                 record.purchase_date = datetime.now()
@@ -217,7 +227,7 @@ async def shopify_webhook(request: Request, db: Session = Depends(get_db)):
                     logger.error(f"[WEBHOOK] Database error: {e}")
                     raise HTTPException(status_code=500, detail="Database error")
 
-                # 发送结果邮件
+                # send the full result to user's email
                 try:
                     email_sent = await email_service.send_astrology_result_email(
                         record.email,
@@ -229,17 +239,14 @@ async def shopify_webhook(request: Request, db: Session = Depends(get_db)):
                         logger.info(f"[WEBHOOK] Result email sent to {record.email}")
                     else:
                         logger.error(f"[WEBHOOK] Failed to send email to {record.email}")
-                        # 可以添加重试逻辑或发送到队列
 
                 except Exception as e:
                     logger.error(f"[WEBHOOK] Email service error: {e}")
-                    # 不要因为邮件失败而让 webhook 失败
 
             else:
                 logger.error(f"[WEBHOOK] Record {record_id} not found in database")
         else:
             logger.error(f"[WEBHOOK] Could not identify record for order {webhook_data.get('id')}")
-            # 可以发送通知给管理员处理
 
         return {"status": "success"}
 
@@ -251,12 +258,12 @@ async def shopify_webhook(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# 添加手动触发邮件发送的端点（用于补发）
 @router.post("/admin/resend-result-email")
 async def resend_result_email(
-        request: Dict,
-        db: Session = Depends(get_db),
-        _: str = Depends(verify_admin_auth)
+    request: Dict,
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_admin_auth),
+    email_service = Depends(get_email_service)
 ):
     """Manually resend result email for a record"""
     record_id = request.get("record_id")
@@ -378,7 +385,10 @@ async def update_translation(translation_id: int, translation: TranslationPairUp
 
 
 @router.post("/verify-email-first")
-async def verify_email_first(request: VerificationRequest):
+async def verify_email_first(
+    request: VerificationRequest,
+    email_service = Depends(get_email_service)
+):
     """Step 1: Verify email and verification code before form submission"""
     logger.info(f"[API] Email verification started for: {request.email}")
 
@@ -391,7 +401,12 @@ async def verify_email_first(request: VerificationRequest):
 
 
 @router.post("/astrology/calculate")
-async def calculate_astrology(user_info: UserInfoRequest, db: Session = Depends(get_db)):
+async def calculate_astrology(
+    user_info: UserInfoRequest, 
+    db: Session = Depends(get_db),
+    email_service = Depends(get_email_service),
+    astrology_service = Depends(get_astrology_service)
+):
     """Step 2: Process complete form submission (email must be pre-verified)"""
     logger.info(f"[API] Astrology calculation started for email: {user_info.email}")
 
@@ -416,7 +431,11 @@ async def calculate_astrology(user_info: UserInfoRequest, db: Session = Depends(
 
 # Debug endpoints for testing
 @router.get("/debug/verification-code/{email}")
-async def get_verification_code_for_testing(email: str, _: str = Depends(verify_admin_auth)):
+async def get_verification_code_for_testing(
+    email: str, 
+    _: str = Depends(verify_admin_auth),
+    email_service = Depends(get_email_service)
+):
     """Get verification code for testing purposes (admin only)"""
     code = email_service.get_verification_code_for_testing(email)
     if code:
@@ -427,51 +446,25 @@ async def get_verification_code_for_testing(email: str, _: str = Depends(verify_
         raise HTTPException(status_code=404, detail="No verification code found for this email")
 
 
-# 定期清理过期token的后台任务
-async def cleanup_tokens_task():
-    """后台任务：定期清理过期tokens"""
-    while True:
-        await asyncio.sleep(3600)  # 每小时清理一次
-        token_service.cleanup_expired_tokens()
-
-
-# 启动后台任务（在FastAPI启动时调用）
-@router.on_event("startup")
-async def startup_event():
-    asyncio.create_task(cleanup_tokens_task())
-    logger.info("Started background token cleanup task")
-
-
-@router.on_event("shutdown")
-async def shutdown_event():
-    await screenshot_service.close()
-    logger.info("Closed screenshot service")
-
-
 @router.get("/api/verify-report-token")
 async def verify_report_token(
-        token: str,
-        record_id: int,
-        db: Session = Depends(get_db)
+    token: str,
+    record_id: int,
+    db: Session = Depends(get_db),
+    token_service = Depends(get_token_service)
 ):
-    """
-    验证报告查看token
-    前端通过此端点验证token是否有效，有效则显示完整报告
-    """
+    """verify the report token"""
     try:
-        # 验证token
         is_valid, token_data = token_service.verify_token(token)
 
         if not is_valid:
             logger.warning(f"Invalid token attempt for record {record_id}")
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-        # 验证record_id匹配
         if token_data["record_id"] != record_id:
             logger.warning(f"Token record mismatch: expected {token_data['record_id']}, got {record_id}")
             raise HTTPException(status_code=401, detail="Token does not match record")
 
-        # 获取记录信息
         record = db.query(AstrologyRecord).filter(
             AstrologyRecord.id == record_id
         ).first()
@@ -479,13 +472,11 @@ async def verify_report_token(
         if not record:
             raise HTTPException(status_code=404, detail="Record not found")
 
-        # 确认已支付
         if not record.is_purchased:
             raise HTTPException(status_code=402, detail="Payment required")
 
         logger.info(f"Token verified successfully for record {record_id}")
 
-        # 返回完整的占星数据
         return {
             "valid": True,
             "record_id": record_id,
@@ -510,9 +501,13 @@ async def verify_report_token(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-# 更新的Webhook处理，加入截图和发送流程
 @router.post("/webhook/shopify-enhanced")
-async def shopify_webhook_enhanced(request: Request, db: Session = Depends(get_db)):
+async def shopify_webhook_enhanced(
+    request: Request, 
+    db: Session = Depends(get_db),
+    shopify_service = Depends(get_shopify_service),
+    report_email_service = Depends(get_report_email_service)
+):
     """增强版Shopify webhook处理，包含截图功能"""
     try:
         body = await request.body()
@@ -520,7 +515,6 @@ async def shopify_webhook_enhanced(request: Request, db: Session = Depends(get_d
 
         logger.info(f"[WEBHOOK-ENHANCED] Received Shopify webhook")
 
-        # 验证webhook（生产环境）
         if os.getenv("ENVIRONMENT") == "production":
             if not shopify_service.verify_webhook(body, signature):
                 logger.error("[WEBHOOK-ENHANCED] Invalid webhook signature")
@@ -532,11 +526,9 @@ async def shopify_webhook_enhanced(request: Request, db: Session = Depends(get_d
         if webhook_topic not in ["orders/paid", "orders/fulfilled"]:
             return {"status": "ignored"}
 
-        # 提取record_id
         record_id = shopify_service.extract_record_id_from_order(webhook_data)
 
         if not record_id:
-            # 尝试通过邮箱查找
             customer_email = webhook_data.get("email") or webhook_data.get("customer", {}).get("email")
             if customer_email:
                 record = db.query(AstrologyRecord).filter(
@@ -551,19 +543,16 @@ async def shopify_webhook_enhanced(request: Request, db: Session = Depends(get_d
             logger.error(f"[WEBHOOK-ENHANCED] Cannot identify record for order {webhook_data.get('id')}")
             return {"status": "error", "message": "Record not found"}
 
-        # 获取记录
         record = db.query(AstrologyRecord).filter(AstrologyRecord.id == record_id).first()
 
         if not record:
             logger.error(f"[WEBHOOK-ENHANCED] Record {record_id} not found")
             return {"status": "error", "message": "Record not found"}
 
-        # 检查是否已处理
         if record.is_purchased and record.shopify_order_id:
             logger.info(f"[WEBHOOK-ENHANCED] Order already processed for record {record_id}")
             return {"status": "already_processed"}
 
-        # 更新购买状态
         record.is_purchased = True
         record.shopify_order_id = str(webhook_data.get("id"))
         record.purchase_date = datetime.now()
@@ -576,9 +565,9 @@ async def shopify_webhook_enhanced(request: Request, db: Session = Depends(get_d
             logger.error(f"[WEBHOOK-ENHANCED] Database error: {e}")
             raise HTTPException(status_code=500, detail="Database error")
 
-        # 异步处理截图和发送邮件（不阻塞webhook响应）
+        # send result
         asyncio.create_task(
-            process_report_delivery(record_id, record.email, record.name)
+            process_report_delivery(record_id, record.email, record.name, report_email_service)
         )
 
         return {"status": "success", "message": "Processing report delivery"}
@@ -588,36 +577,30 @@ async def shopify_webhook_enhanced(request: Request, db: Session = Depends(get_d
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def process_report_delivery(record_id: int, email: str, name: str):
-    """异步处理报告生成和发送"""
+async def process_report_delivery(record_id: int, email: str, name: str, report_email_service):
     try:
         logger.info(f"Starting report delivery for record {record_id}")
-
-        # 使用新的报告邮件服务
         success = await report_email_service.process_payment_completion(
             record_id=record_id,
             email=email,
             name=name
         )
-
         if success:
             logger.info(f"Report delivered successfully to {email}")
         else:
             logger.error(f"Failed to deliver report to {email}")
-            # 可以加入重试队列或发送通知给管理员
-
     except Exception as e:
         logger.error(f"Error in report delivery: {e}")
 
 
-# 管理端点：手动触发报告生成
 @router.post("/admin/generate-report")
 async def manually_generate_report(
-        request: dict,
-        db: Session = Depends(get_db),
-        _: str = Depends(verify_admin_auth)
+    request: dict,
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_admin_auth), 
+    report_email_service = Depends(get_report_email_service)
 ):
-    """手动生成并发送报告（管理员功能）"""
+    """manually generate and send report"""
     record_id = request.get("record_id")
 
     if not record_id:
@@ -634,13 +617,11 @@ async def manually_generate_report(
         raise HTTPException(status_code=400, detail="Record not purchased")
 
     try:
-        # 生成并发送报告
         success = await report_email_service.process_payment_completion(
             record_id=record.id,
             email=record.email,
             name=record.name
         )
-
         if success:
             return {"message": f"Report sent to {record.email}"}
         else:
@@ -651,14 +632,13 @@ async def manually_generate_report(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# 调试端点：获取token状态
 @router.get("/admin/token-status")
-async def get_token_status(_: str = Depends(verify_admin_auth)):
-    """获取所有token的状态（管理员功能）"""
+async def get_token_status(_: str = Depends(verify_admin_auth), token_service = Depends(get_token_service)):
+    """get all the token status, need admin perssion"""
     tokens_info = []
     for token, data in token_service.tokens.items():
         tokens_info.append({
-            "token": token[:10] + "...",  # 只显示前10个字符
+            "token": token[:10] + "...",  
             "record_id": data["record_id"],
             "email": data["email"],
             "created_at": data["created_at"].isoformat(),
@@ -671,15 +651,3 @@ async def get_token_status(_: str = Depends(verify_admin_auth)):
         "total_tokens": len(tokens_info),
         "tokens": tokens_info
     }
-
-
-# 健康检查端点
-@router.get("/health/screenshot-service")
-async def check_screenshot_service():
-    """检查截图服务是否正常"""
-    try:
-        await screenshot_service.initialize()
-        return {"status": "healthy", "browser": "initialized"}
-    except Exception as e:
-        logger.error(f"Screenshot service unhealthy: {e}")
-        return {"status": "unhealthy", "error": str(e)}
