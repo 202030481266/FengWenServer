@@ -1,2 +1,0 @@
-[console_scripts]
-fengwen2 = fengwen2.main:main
