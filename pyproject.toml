@@ -42,9 +42,5 @@ where = ["src"]
 [tool.setuptools.package-data]
 "*" = ["*.html", "*.css", "*.js"]
 
-[project.urls]
-Homepage = "https://github.com/fengwen2/astrology-backend"
-Repository = "https://github.com/fengwen2/astrology-backend"
-
 [project.scripts]
 fengwen2 = "fengwen2.main:main"
