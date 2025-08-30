@@ -94,6 +94,7 @@ async def root():
             """
         )
 
+
 @app.get("/health")
 async def health():
     service_manager = get_service_manager()
@@ -102,22 +103,11 @@ async def health():
         "services": {
             "email": "ok",
             "shopify": "ok",
-            "astrology": "ok",
-            "token": "ok",
-            "screenshot": "unknown",
-            "report_email": "ok"
+            "astrology": "ok"
         }
     }
-    try:
-        if service_manager.screenshot_service.browser: # check the browser instance whether is None
-            health_status["services"]["screenshot"] = "ok"
-        else:
-            health_status["services"]["screenshot"] = "not_initialized"
-    except Exception as e:
-        health_status["services"]["screenshot"] = f"error: {str(e)}"
-        health_status["status"] = "degraded"
-    
     return health_status
+
 
 if __name__ == "__main__":
     import uvicorn
