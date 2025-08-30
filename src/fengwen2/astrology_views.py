@@ -118,14 +118,20 @@ class ZhengyuanInfoView(BaseModel):
 
 class ApiBaziResponseView(BaseModel):
     """八字API响应视图模型"""
+    errcode: int | None = None
+    errmsg: str | None = None
     data: CesuanResultView
 
 class ApiLiudaoResponseView(BaseModel):
     """六道API响应视图模型"""
+    errcode: int | None = None
+    errmsg: str | None = None
     data: LiudaoInfoView
 
 class ApiZhengyuanResponseView(BaseModel):
     """正缘API响应视图模型"""
+    errcode: int | None = None
+    errmsg: str | None = None
     data: ZhengyuanInfoView
 
 class AstrologyResultsView(BaseModel):
