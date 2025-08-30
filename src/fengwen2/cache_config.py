@@ -1,10 +1,8 @@
 import os
 import hashlib
 import json
-from typing import Optional
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
-from fastapi_cache.decorator import cache
 import redis.asyncio as redis
 import logging
 
@@ -12,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 CACHE_TTL = int(os.getenv("CACHE_TTL", 3600))  # 1 hour default
-
 
 async def init_cache():
     """Initialize Redis cache connection"""
@@ -29,14 +26,7 @@ def generate_cache_key(prefix: str, **kwargs) -> str:
     return f"{prefix}:{hash_digest}"
 
 
-def astrology_cache_key_builder(
-    func,
-    namespace: Optional[str] = "",
-    request = None,
-    response = None,
-    args = None,
-    kwargs = None,
-):
+def astrology_cache_key_builder(kwargs = None):
     """Custom cache key builder for astrology endpoints"""
     # Extract the UserInfoRequest from kwargs
     user_info = kwargs.get("user_info")
