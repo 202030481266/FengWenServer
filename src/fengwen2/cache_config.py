@@ -1,6 +1,7 @@
 import os
 import hashlib
 import json
+from fastapi import Request, Response
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 import redis.asyncio as redis
@@ -26,9 +27,16 @@ def generate_cache_key(prefix: str, **kwargs) -> str:
     return f"{prefix}:{hash_digest}"
 
 
-def astrology_cache_key_builder(kwargs = None):
+def astrology_cache_key_builder(
+    func,
+    namespace: str = "",
+    *,
+    request: Request,
+    response: Response | None = None,
+    args: tuple,
+    kwargs: dict,
+):
     """Custom cache key builder for astrology endpoints"""
-    # Extract the UserInfoRequest from kwargs
     user_info = kwargs.get("user_info")
     if user_info:
         return generate_cache_key(
