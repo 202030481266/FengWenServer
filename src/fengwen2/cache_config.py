@@ -4,6 +4,7 @@ import json
 from fastapi import Request, Response
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
+from .models import UserInfoRequest
 import redis.asyncio as redis
 import logging
 
@@ -37,8 +38,13 @@ def astrology_cache_key_builder(
     kwargs: dict,
 ):
     """Custom cache key builder for astrology endpoints"""
-    user_info = kwargs.get("user_info")
+    logger.info(f"Cache key builder invoked. args: {args}, kwargs: {kwargs}")
+    user_info = None
+    if args:
+        if isinstance(args[0], UserInfoRequest):
+            user_info = args[0]
     if user_info:
+        logger.info(f"Successfully found user_info for caching: {user_info.email}")
         return generate_cache_key(
             "astrology:calculate",
             email=user_info.email,
@@ -47,6 +53,7 @@ def astrology_cache_key_builder(
             birth_time=user_info.birth_time,
             gender=user_info.gender
         )
+    logger.warning("Cache key builder did not find user_info. Skipping cache.")
     return None
 
 
