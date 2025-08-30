@@ -1,0 +1,26 @@
+name: Sync to Gitee via Git Push
+
+on:
+  push:
+    branches:
+      - main 
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Gitee
+        env:
+          GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
+          GITEE_TOKEN: ${{ secrets.GITEE_PRIVATE_KEY }}
+          GITHUB_REPO: ${{ github.repository }}
+
+        run: |
+          echo "Syncing to https://gitee.com/${GITHUB_REPO}.git"
+          git push --force "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITHUB_REPO}.git" --all
+          git push --force "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITHUB_REPO}.git" --tags
