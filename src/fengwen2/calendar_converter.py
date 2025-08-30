@@ -1,5 +1,7 @@
-from zhdate import ZhDate
 from datetime import datetime
+
+from zhdate import ZhDate
+
 
 def gregorian_to_lunar(birth_date: datetime) -> str:
     """Convert gregorian date to lunar date"""

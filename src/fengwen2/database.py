@@ -1,8 +1,9 @@
+import os
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import os
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -48,7 +49,6 @@ class SiteConfig(Base):
 
 
 # Import admin models to register them
-from .admin_models import Product, TranslationPair
 
 Base.metadata.create_all(bind=engine)
 

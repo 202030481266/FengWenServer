@@ -1,9 +1,12 @@
-import httpx
-import json
+import logging
 import os
 import re
 from typing import Dict, Any, List
+
+import httpx
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -110,7 +113,7 @@ Only return numbered translations."""
                 return translations
 
         except Exception as e:
-            print(f"Translation error: {e}")
+            logger.error(f"Translation API error: {e}", exc_info=True)
             return {text: text for text in texts}  # Return originals on error
 
     def apply_translations(self, obj: Any, translations: Dict[str, str]) -> Any:
@@ -137,52 +140,31 @@ Only return numbered translations."""
 
     async def translate_json(self, data: dict) -> dict:
         """Translate entire JSON structure while preserving format"""
-        print("[TRANSLATOR] Starting translation...")
+        logger.info("Starting translation process...")
 
         # Find all Chinese texts
         chinese_texts = self.find_chinese_texts(data)
-        print(f"[TRANSLATOR] Found {len(chinese_texts)} Chinese texts")
-
         if not chinese_texts:
+            logger.info("No Chinese text found. Skipping translation.")
             return data
+
+        logger.info(f"Found {len(chinese_texts)} unique Chinese texts to translate.")
 
         # Translate all at once
         translations = await self.batch_translate(chinese_texts)
-        print(f"[TRANSLATOR] Translated {len(translations)} texts")
+        if len(translations) < len(chinese_texts):
+            logger.warning(f"Translation may be incomplete. Expected {len(chinese_texts)} but got {len(translations)}.")
+        else:
+            logger.info(f"Successfully translated {len(translations)} texts.")
 
         # Apply translations
         translated_data = self.apply_translations(data, translations)
-        print("[TRANSLATOR] Translation complete")
+        logger.info("Translation process complete.")
 
         return translated_data
 
-    async def extract_and_translate_astrology_result(self, astrology_data: dict, original_name: str = None) -> dict:
+    async def extract_and_translate_astrology_result(self, astrology_data: dict) -> dict | None:
         """Main translation entry point"""
         if not astrology_data:
             return None
-
-        # Replace names if provided
-        if original_name:
-            astrology_data = self._replace_names(astrology_data, original_name)
-
-        # Translate everything
         return await self.translate_json(astrology_data)
-
-    def _replace_names(self, data: dict, name: str) -> dict:
-        """Replace name fields with original name"""
-        import copy
-        result = copy.deepcopy(data)
-
-        def replace_in_obj(obj):
-            if isinstance(obj, dict):
-                for key, value in obj.items():
-                    if key == "name" and isinstance(value, str):
-                        obj[key] = name
-                    else:
-                        replace_in_obj(value)
-            elif isinstance(obj, list):
-                for item in obj:
-                    replace_in_obj(item)
-
-        replace_in_obj(result)
-        return result

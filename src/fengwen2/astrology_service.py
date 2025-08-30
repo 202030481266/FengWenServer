@@ -1,14 +1,18 @@
-from datetime import datetime
-from typing import Optional, Dict, Any
 import json
 import logging
+from datetime import datetime
+from typing import Dict, Any
+
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from .database import AstrologyRecord
-from .calendar_converter import gregorian_to_lunar
-from .astrology_api import AstrologyAPIClient
-from .translation import TranslationService
-from .shopify_service import ShopifyPaymentService
+from src.fengwen2.astrology_api import AstrologyAPIClient
+from src.fengwen2.astrology_types import *
+from src.fengwen2.astrology_views import *
+from src.fengwen2.calendar_converter import gregorian_to_lunar
+from src.fengwen2.database import AstrologyRecord
+from src.fengwen2.shopify_service import ShopifyPaymentService
+from src.fengwen2.translation import TranslationService
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +25,8 @@ class AstrologyService:
         self.translation_service = TranslationService()
         self.shopify_service = ShopifyPaymentService()
 
-    def create_record(self, email: str, name: str, birth_date: str,
-                      birth_time: str, gender: str, is_lunar: bool, db: Session) -> AstrologyRecord:
+    @staticmethod
+    def create_record(email: str, name: str, birth_date: str, birth_time: str, gender: str, db: Session) -> AstrologyRecord:
         """Create database record"""
         birth_date_obj = datetime.strptime(birth_date, "%Y-%m-%d")
         lunar_date = gregorian_to_lunar(birth_date_obj)
@@ -53,19 +57,25 @@ class AstrologyService:
             )
             logger.info(f"[SERVICE] Preview result received: {preview_result is not None}")
 
+            # 检验返回的数据是否正确，以及裁剪json数据
+            ApiBaziResponse.model_validate(preview_result)
+            preview_model = ApiBaziResponseView.model_validate(preview_result)
+            preview_result = preview_model.model_dump()
+
             if preview_result and preview_result.get("errcode") == 0 and preview_result.get("data"):
                 preview_result_en = await self.translation_service.extract_and_translate_astrology_result(
-                    preview_result, record.name
-                )
+                    preview_result)
 
                 if preview_result_en:
                     record.preview_result_zh = json.dumps(preview_result)
                     record.preview_result_en = json.dumps(preview_result_en)
                     db.commit()
                     logger.info(f"[SERVICE] Preview results saved successfully")
-
+        except ValidationError as e:
+            error_summary = "; ".join([f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()])
+            logger.error(f"[VALIDATION ERROR] Summary: {error_summary}")
         except Exception as e:
-            logger.error(f"[SERVICE] Error generating preview results: {e}")
+            logger.error(f"[SERVICE] Error generating preview results: {e}", exc_info=True)
 
     async def generate_full_results(self, record: AstrologyRecord, db: Session):
         """Generate and save full results"""
@@ -78,6 +88,11 @@ class AstrologyService:
             )
             logger.info(f"[SERVICE] Full results received: {full_results is not None}")
 
+            # 检验返回的数据是否正确，以及裁剪json数据
+            AstrologyResults.model_validate(full_results)
+            full_model = AstrologyResultsView.model_validate(full_results)
+            full_results = full_model.model_dump()
+
             valid_results = {}
             for api_name, api_result in full_results.items():
                 if api_result and not api_result.get("error") and api_result.get("errcode") == 0:
@@ -87,9 +102,11 @@ class AstrologyService:
                 record.full_result_zh = json.dumps(valid_results)
                 db.commit()
                 logger.info(f"[SERVICE] Full results saved: {list(valid_results.keys())}")
-
+        except ValidationError as e:
+            error_summary = "; ".join([f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()])
+            logger.error(f"[VALIDATION ERROR] Summary: {error_summary}")
         except Exception as e:
-            logger.error(f"[SERVICE] Error generating full results: {e}")
+            logger.error(f"[SERVICE] Error generating full results: {e}", exc_info=True)
 
     async def generate_english_translation(self, record: AstrologyRecord, db: Session):
         """Generate English translation for full results"""
@@ -98,9 +115,7 @@ class AstrologyService:
 
         try:
             full_results = json.loads(record.full_result_zh)
-            full_result_en = await self.translation_service.extract_and_translate_astrology_result(
-                full_results, record.name
-            )
+            full_result_en = await self.translation_service.extract_and_translate_astrology_result(full_results)
 
             if full_result_en:
                 record.full_result_en = json.dumps(full_result_en)
@@ -108,7 +123,7 @@ class AstrologyService:
                 logger.info(f"[SERVICE] English translation saved successfully")
 
         except Exception as e:
-            logger.error(f"[SERVICE] Error generating English translation: {e}")
+            logger.error(f"[SERVICE] Error generating English translation: {e}", exc_info=True)
 
     async def process_complete_astrology(self, record: AstrologyRecord, db: Session) -> Dict[str, Any]:
         """Complete astrology processing pipeline"""
@@ -120,7 +135,8 @@ class AstrologyService:
 
         return self.format_response(record, checkout_url)
 
-    def format_response(self, record: AstrologyRecord, checkout_url: str) -> Dict[str, Any]:
+    @staticmethod
+    def format_response(record: AstrologyRecord, checkout_url: str) -> Dict[str, Any]:
         """Format API response based on available data"""
         response = {}
 

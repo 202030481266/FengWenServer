@@ -1,5 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text
-from .database import Base
+
+from src.fengwen2.database import Base
+
 
 class Product(Base):
     __tablename__ = "products"

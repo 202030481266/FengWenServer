@@ -1,9 +1,13 @@
-import httpx
-from datetime import datetime
-from typing import Dict, Optional, Any
+import logging
 import os
 import re
+from datetime import datetime
+from typing import Dict, Optional, Any
+
+import httpx
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -49,7 +53,8 @@ class AstrologyAPIClient:
         else:
             return data
 
-    def _is_image_data(self, value: str) -> bool:
+    @staticmethod
+    def _is_image_data(value: str) -> bool:
         """Check if string value appears to be image data"""
         if not isinstance(value, str) or len(value) < 10:
             return False
@@ -112,7 +117,7 @@ class AstrologyAPIClient:
             result = await self.call_bazi_api(name, gender, birth_date, birth_time)
             return result
         except Exception as e:
-            print(f"Error calling preview API: {e}")
+            logger.error(f"Error calling preview API for name={name}: {e}")
             return None
 
     async def get_full_results(self, name: str, gender: str, birth_date: datetime, birth_time: str) -> Dict:
@@ -128,6 +133,7 @@ class AstrologyAPIClient:
             try:
                 results[api_name] = await api_func(name, gender, birth_date, birth_time)
             except Exception as e:
+                logger.error(f"Error calling {api_name} API for name={name}: {e}")
                 results[api_name] = {"error": str(e)}
 
         return results

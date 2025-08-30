@@ -1,18 +1,19 @@
+import base64
+import logging
 import os
 import random
 import string
-import logging
-from typing import Optional
 from datetime import datetime, timedelta
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Optional
+
 from dotenv import load_dotenv
 from tencentcloud.common import credential
 from tencentcloud.common.exception.tencent_cloud_sdk_exception import TencentCloudSDKException
 from tencentcloud.ses.v20201002 import ses_client, models
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
-import base64
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

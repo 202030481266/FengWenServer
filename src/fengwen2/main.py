@@ -1,15 +1,16 @@
+import logging
+import os
+from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
-import os
-from dotenv import load_dotenv
+from fastapi.staticfiles import StaticFiles
 
-import logging
-from contextlib import asynccontextmanager
-from .api_routes import router
-from .service_manager import get_service_manager
-from .cache_config import init_cache
+from src.fengwen2.api_routes import router
+from src.fengwen2.cache_config import init_cache
+from src.fengwen2.service_manager import get_service_manager
 
 # app logger
 logging.basicConfig(

@@ -1,10 +1,11 @@
-import os
 import hashlib
 import json
+import logging
+import os
+
+import redis.asyncio as redis
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
-import redis.asyncio as redis
-import logging
 
 logger = logging.getLogger(__name__)
 

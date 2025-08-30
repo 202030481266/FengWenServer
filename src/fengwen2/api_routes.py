@@ -11,12 +11,12 @@ from fastapi.responses import HTMLResponse
 from fastapi_cache import FastAPICache
 from sqlalchemy.orm import Session
 
-from .database import get_db, AstrologyRecord
-from .admin_models import Product, TranslationPair as DBTranslationPair
-from .models import UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate, TranslationPair as TranslationPairRequest
-from .service_manager import get_service_manager
-from .cache_config import CACHE_TTL, CacheManager
-
+from src.fengwen2.admin_models import Product, TranslationPair as DBTranslationPair
+from src.fengwen2.cache_config import CACHE_TTL, CacheManager
+from src.fengwen2.database import get_db, AstrologyRecord
+from src.fengwen2.models import UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate, \
+    TranslationPair as TranslationPairRequest
+from src.fengwen2.service_manager import get_service_manager
 
 logger = logging.getLogger(__name__)
 
@@ -86,10 +86,8 @@ async def submit_user_info(
     """Submit user info and get preview result"""
     logger.info(f"[API] User info submission started for email: {user_info.email}")
     try:
-        record = astrology_service.create_record(
-            user_info.email, user_info.name, user_info.birth_date,
-            user_info.birth_time, user_info.gender, False, db
-        )
+        record = astrology_service.create_record(user_info.email, user_info.name, user_info.birth_date,
+                                                 user_info.birth_time, user_info.gender, db)
 
         return {
             "record_id": record.id,
@@ -404,20 +402,16 @@ async def calculate_astrology(
         logger.warning(f"[API] Email not verified or expired for: {user_info.email}")
         raise HTTPException(status_code=400, detail="Please verify your email first")
 
-    # Generate cache key for this request
+    # cache mechanism
     cache_key = CacheManager.generate_astrology_cache_key(user_info)
-    
-    # Try to get cached result
     cached_result = await CacheManager.get_cached_result(cache_key)
     if cached_result:
         logger.info(f"[API] Returning cached result for email: {user_info.email}")
         return cached_result
 
     try:
-        record = astrology_service.create_record(
-            user_info.email, user_info.name, user_info.birth_date,
-            user_info.birth_time, user_info.gender, False, db
-        )
+        record = astrology_service.create_record(user_info.email, user_info.name, user_info.birth_date,
+                                                 user_info.birth_time, user_info.gender, db)
 
         result = await astrology_service.process_complete_astrology(record, db)
         
@@ -426,7 +420,6 @@ async def calculate_astrology(
         logger.info(f"[API] Result cached for email: {user_info.email}")
         
         return result
-
     except HTTPException:
         raise
     except Exception as e:
