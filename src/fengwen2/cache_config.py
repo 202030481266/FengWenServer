@@ -47,7 +47,7 @@ class CacheManager:
         try:
             backend = FastAPICache.get_backend()
             full_key = f"astrology-cache:{cache_key}"
-            cached_data = await backend.client.get(full_key)
+            cached_data = await backend.redis.get(full_key)
             if cached_data:
                 logger.info(f"Cache hit for key: {cache_key}")
                 return json.loads(cached_data)
@@ -64,7 +64,7 @@ class CacheManager:
         try:
             backend = FastAPICache.get_backend()
             full_key = f"astrology-cache:{cache_key}"
-            await backend.client.setex(full_key, ttl, json.dumps(result, default=str))
+            await backend.redis.setex(full_key, ttl, json.dumps(result, default=str))
             logger.info(f"Result cached with TTL {ttl}s for key: {cache_key}")
         except Exception as e:
             logger.error(f"Error setting cached result: {e}")
@@ -76,8 +76,8 @@ class CacheManager:
             backend = FastAPICache.get_backend()
             # Pattern match all keys for this email
             pattern = f"astrology-cache:astrology:calculate:*{email}*"
-            async for key in backend.client.scan_iter(match=pattern):
-                await backend.client.delete(key)
+            async for key in backend.redis.scan_iter(match=pattern):
+                await backend.redis.delete(key)
             logger.info(f"Cache invalidated for email: {email}")
         except Exception as e:
             logger.error(f"Error invalidating cache: {e}")
@@ -87,8 +87,8 @@ class CacheManager:
         """Clear all astrology cache (use with caution)"""
         try:
             backend = FastAPICache.get_backend()
-            async for key in backend.client.scan_iter(match="astrology-cache:*"):
-                await backend.client.delete(key)
+            async for key in backend.redis.scan_iter(match="astrology-cache:*"):
+                await backend.redis.delete(key)
             logger.info("All astrology cache cleared")
         except Exception as e:
             logger.error(f"Error clearing cache: {e}")
