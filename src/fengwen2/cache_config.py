@@ -1,10 +1,8 @@
 import os
 import hashlib
 import json
-from fastapi import Request, Response
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
-from .models import UserInfoRequest
 import redis.asyncio as redis
 import logging
 
@@ -28,23 +26,12 @@ def generate_cache_key(prefix: str, **kwargs) -> str:
     return f"{prefix}:{hash_digest}"
 
 
-def astrology_cache_key_builder(
-    func,
-    namespace: str = "",
-    *,
-    request: Request,
-    response: Response | None = None,
-    args: tuple,
-    kwargs: dict,
-):
-    """Custom cache key builder for astrology endpoints"""
-    logger.info(f"Cache key builder invoked. args: {args}, kwargs: {kwargs}")
-    user_info = None
-    if args:
-        if isinstance(args[0], UserInfoRequest):
-            user_info = args[0]
-    if user_info:
-        logger.info(f"Successfully found user_info for caching: {user_info.email}")
+class CacheManager:
+    """Helper class for cache management"""
+    
+    @staticmethod
+    def generate_astrology_cache_key(user_info) -> str:
+        """Generate cache key for astrology calculation"""
         return generate_cache_key(
             "astrology:calculate",
             email=user_info.email,
@@ -53,12 +40,34 @@ def astrology_cache_key_builder(
             birth_time=user_info.birth_time,
             gender=user_info.gender
         )
-    logger.warning("Cache key builder did not find user_info. Skipping cache.")
-    return None
-
-
-class CacheManager:
-    """Helper class for cache management"""
+    
+    @staticmethod
+    async def get_cached_result(cache_key: str):
+        """Get cached result by key"""
+        try:
+            backend = FastAPICache.get_backend()
+            full_key = f"astrology-cache:{cache_key}"
+            cached_data = await backend.client.get(full_key)
+            if cached_data:
+                logger.info(f"Cache hit for key: {cache_key}")
+                return json.loads(cached_data)
+            else:
+                logger.info(f"Cache miss for key: {cache_key}")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting cached result: {e}")
+            return None
+    
+    @staticmethod
+    async def set_cached_result(cache_key: str, result: dict, ttl: int):
+        """Cache result with TTL"""
+        try:
+            backend = FastAPICache.get_backend()
+            full_key = f"astrology-cache:{cache_key}"
+            await backend.client.setex(full_key, ttl, json.dumps(result, default=str))
+            logger.info(f"Result cached with TTL {ttl}s for key: {cache_key}")
+        except Exception as e:
+            logger.error(f"Error setting cached result: {e}")
     
     @staticmethod
     async def invalidate_user_cache(email: str):

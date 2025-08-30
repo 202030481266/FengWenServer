@@ -9,14 +9,13 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import HTMLResponse
 from fastapi_cache import FastAPICache
-from fastapi_cache.decorator import cache
 from sqlalchemy.orm import Session
 
 from .database import get_db, AstrologyRecord
 from .admin_models import Product, TranslationPair as DBTranslationPair
 from .models import UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate, TranslationPair as TranslationPairRequest
 from .service_manager import get_service_manager
-from .cache_config import astrology_cache_key_builder, CACHE_TTL, CacheManager
+from .cache_config import CACHE_TTL, CacheManager
 
 
 logger = logging.getLogger(__name__)
@@ -393,7 +392,6 @@ async def verify_email_first(
 
 
 @router.post("/astrology/calculate")
-@cache(expire=CACHE_TTL, key_builder=astrology_cache_key_builder)
 async def calculate_astrology(
     user_info: UserInfoRequest, 
     db: Session = Depends(get_db),
@@ -406,13 +404,28 @@ async def calculate_astrology(
         logger.warning(f"[API] Email not verified or expired for: {user_info.email}")
         raise HTTPException(status_code=400, detail="Please verify your email first")
 
+    # Generate cache key for this request
+    cache_key = CacheManager.generate_astrology_cache_key(user_info)
+    
+    # Try to get cached result
+    cached_result = await CacheManager.get_cached_result(cache_key)
+    if cached_result:
+        logger.info(f"[API] Returning cached result for email: {user_info.email}")
+        return cached_result
+
     try:
         record = astrology_service.create_record(
             user_info.email, user_info.name, user_info.birth_date,
             user_info.birth_time, user_info.gender, False, db
         )
 
-        return await astrology_service.process_complete_astrology(record, db)
+        result = await astrology_service.process_complete_astrology(record, db)
+        
+        # Cache the result
+        await CacheManager.set_cached_result(cache_key, result, CACHE_TTL)
+        logger.info(f"[API] Result cached for email: {user_info.email}")
+        
+        return result
 
     except HTTPException:
         raise
