@@ -97,7 +97,6 @@ async def root():
 
 @app.get("/health")
 async def health():
-    service_manager = get_service_manager()
     health_status = {
         "status": "healthy",
         "services": {
