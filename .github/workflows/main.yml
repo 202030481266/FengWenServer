@@ -18,9 +18,9 @@ jobs:
         env:
           GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
           GITEE_TOKEN: ${{ secrets.GITEE_PRIVATE_KEY }}
-          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_REPO: ${{ secrets.GITEE_REPO_URL }}
 
         run: |
           echo "Syncing to https://gitee.com/${GITHUB_REPO}.git"
-          git push --force "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITHUB_REPO_URL}.git" --all
-          git push --force "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITHUB_REPO_URL}.git" --tags
+          git push --force "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITHUB_REPO}.git" --all
+          git push --force "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITHUB_REPO}.git" --tags
