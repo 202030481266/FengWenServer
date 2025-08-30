@@ -22,5 +22,5 @@ jobs:
 
         run: |
           echo "Syncing to https://gitee.com/${GITHUB_REPO}.git"
-          git push --force "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITHUB_REPO}.git" --all
-          git push --force "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITHUB_REPO}.git" --tags
+          git push --force "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITHUB_REPO_URL}.git" --all
+          git push --force "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITHUB_REPO_URL}.git" --tags
