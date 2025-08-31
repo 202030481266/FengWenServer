@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any
 
+from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -46,37 +47,6 @@ class AstrologyService:
         db.refresh(record)
         return record
 
-    async def generate_preview_results(self, record: AstrologyRecord, db: Session):
-        """Generate and save preview results"""
-        if record.preview_result_zh:
-            return
-
-        try:
-            preview_result = await self.astrology_client.get_preview_result(
-                record.name, record.gender, record.birth_date, record.birth_time
-            )
-            logger.info(f"[SERVICE] Preview result received: {preview_result is not None}")
-
-            # 检验返回的数据是否正确，以及裁剪json数据
-            ApiBaziResponse.model_validate(preview_result)
-            preview_model = ApiBaziResponseView.model_validate(preview_result)
-            preview_result = preview_model.model_dump()
-
-            if preview_result and preview_result.get("errcode") == 0 and preview_result.get("data"):
-                preview_result_en = await self.translation_service.extract_and_translate_astrology_result(
-                    preview_result)
-
-                if preview_result_en:
-                    record.preview_result_zh = json.dumps(preview_result)
-                    record.preview_result_en = json.dumps(preview_result_en)
-                    db.commit()
-                    logger.info(f"[SERVICE] Preview results saved successfully")
-        except ValidationError as e:
-            error_summary = "; ".join([f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()])
-            logger.error(f"[VALIDATION ERROR] Summary: {error_summary}")
-        except Exception as e:
-            logger.error(f"[SERVICE] Error generating preview results: {e}", exc_info=True)
-
     async def generate_full_results(self, record: AstrologyRecord, db: Session):
         """Generate and save full results"""
         if record.full_result_zh:
@@ -104,7 +74,7 @@ class AstrologyService:
                 logger.info(f"[SERVICE] Full results saved: {list(valid_results.keys())}")
         except ValidationError as e:
             error_summary = "; ".join([f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()])
-            logger.error(f"[VALIDATION ERROR] Summary: {error_summary}")
+            logger.error(f"[VALIDATION ERROR] Summary: {error_summary}", exc_info=True)
         except Exception as e:
             logger.error(f"[SERVICE] Error generating full results: {e}", exc_info=True)
 
@@ -127,59 +97,47 @@ class AstrologyService:
 
     async def process_complete_astrology(self, record: AstrologyRecord, db: Session) -> Dict[str, Any]:
         """Complete astrology processing pipeline"""
-        await self.generate_preview_results(record, db)
         await self.generate_full_results(record, db)
         await self.generate_english_translation(record, db)
-
+        db.refresh(record) # refresh to get the latest data
         checkout_url = await self.shopify_service.create_checkout_url(record.email, record.id)
-
         return self.format_response(record, checkout_url)
 
     @staticmethod
     def format_response(record: AstrologyRecord, checkout_url: str) -> Dict[str, Any]:
         """Format API response based on available data"""
-        response = {}
+        if not record.full_result_en:
+            logger.error(f"[SERVICE] No English translation available for record ID: {record.id}", exc_info=True)
+            raise HTTPException(
+                status_code=503,
+                detail="Astrology reading is still being processed. Please try again later."
+            )
 
-        # Get English results
-        if record.full_result_en:
-            try:
-                result_data = json.loads(record.full_result_en)
-                logger.info(f"[SERVICE] Using full English result")
-            except json.JSONDecodeError:
-                result_data = {"message": record.full_result_en}
-        elif record.preview_result_en:
-            try:
-                result_data = json.loads(record.preview_result_en)
-                logger.info(f"[SERVICE] Using preview English result")
-            except json.JSONDecodeError:
-                result_data = {"message": record.preview_result_en}
-        else:
-            result_data = {
-                "base_info": {
-                    "name": record.name,
-                    "birth_date": record.birth_date.strftime('%Y-%m-%d'),
-                    "birth_time": record.birth_time,
-                    "gender": record.gender
-                },
-                "message": f"Dear {record.name}, your astrology reading is being processed.",
-                "status": "processing"
-            }
+        try:
+            astrology_results = json.loads(record.full_result_en)
+            logger.info(f"[SERVICE] Successfully loaded English results for record ID: {record.id}")
+        except json.JSONDecodeError as e:
+            logger.error(f"[SERVICE] Failed to parse English results for record ID: {record.id}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Error processing astrology results. Please contact support."
+            )
 
-        response["astrology_results"] = result_data
-        response["shopify_url"] = checkout_url or "https://example.com/checkout"
-
-        # Add Chinese data if available
+        # logically, full_result_zh should exist
         chinese_data = None
         if record.full_result_zh:
             try:
                 chinese_data = json.loads(record.full_result_zh)
-            except json.JSONDecodeError:
-                chinese_data = record.full_result_zh
-        elif record.preview_result_zh:
-            try:
-                chinese_data = json.loads(record.preview_result_zh)
-            except json.JSONDecodeError:
-                chinese_data = record.preview_result_zh
+                logger.info(f"[SERVICE] Successfully loaded Chinese results for record ID: {record.id}")
+            except json.JSONDecodeError as e:
+                logger.warning(f"[SERVICE] Failed to parse Chinese results for record ID: {record.id}: {e}")
+                chinese_data = None
+
+        # full response
+        response = {
+            "astrology_results": astrology_results,
+            "shopify_url": checkout_url or "https://example.com/checkout"
+        }
 
         if chinese_data:
             response["chinese"] = chinese_data

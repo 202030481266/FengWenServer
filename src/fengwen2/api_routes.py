@@ -420,8 +420,8 @@ async def calculate_astrology(
         logger.info(f"[API] Result cached for email: {user_info.email}")
         
         return result
-    except HTTPException:
-        raise
+    except HTTPException as e:
+        raise e
     except Exception as e:
         logger.error(f"Error in calculate_astrology: {e}")
         raise HTTPException(status_code=500, detail=str(e))

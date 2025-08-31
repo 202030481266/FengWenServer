@@ -27,8 +27,6 @@ class AstrologyRecord(Base):
     lunar_date = Column(String)
 
     # Store astrology API results
-    preview_result_zh = Column(Text)
-    preview_result_en = Column(Text)
     full_result_zh = Column(Text)
     full_result_en = Column(Text)
 
