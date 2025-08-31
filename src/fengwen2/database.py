@@ -46,7 +46,8 @@ class SiteConfig(Base):
     updated_at = Column(DateTime, nullable=False)
 
 
-# Import admin models to register them
+# Import admin models to register them with Base
+from src.fengwen2.admin_models import Product, TranslationPair
 
 Base.metadata.create_all(bind=engine)
 

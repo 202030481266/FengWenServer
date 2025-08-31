@@ -11,11 +11,13 @@ from fastapi.responses import HTMLResponse
 from fastapi_cache import FastAPICache
 from sqlalchemy.orm import Session
 
-from src.fengwen2.admin_models import Product, TranslationPair as DBTranslationPair
+from src.fengwen2.admin_models import (
+    Product, TranslationPair as DBTranslationPair,
+    UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate,
+    TranslationPairRequest
+)
 from src.fengwen2.cache_config import CACHE_TTL, CacheManager
 from src.fengwen2.database import get_db, AstrologyRecord
-from src.fengwen2.models import UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate, \
-    TranslationPair as TranslationPairRequest
 from src.fengwen2.service_manager import get_service_manager
 
 logger = logging.getLogger(__name__)
