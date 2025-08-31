@@ -27,7 +27,8 @@ class AstrologyService:
         self.shopify_service = ShopifyPaymentService()
 
     @staticmethod
-    def create_record(email: str, name: str, birth_date: str, birth_time: str, gender: str, db: Session) -> AstrologyRecord:
+    def create_record(email: str, name: str, birth_date: str, birth_time: str, gender: str,
+                      db: Session) -> AstrologyRecord:
         """Create database record"""
         birth_date_obj = datetime.strptime(birth_date, "%Y-%m-%d")
         lunar_date = gregorian_to_lunar(birth_date_obj)
@@ -99,7 +100,7 @@ class AstrologyService:
         """Complete astrology processing pipeline"""
         await self.generate_full_results(record, db)
         await self.generate_english_translation(record, db)
-        db.refresh(record) # refresh to get the latest data
+        db.refresh(record)  # refresh to get the latest data
         checkout_url = await self.shopify_service.create_checkout_url(record.email, record.id)
         return self.format_response(record, checkout_url)
 

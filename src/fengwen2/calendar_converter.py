@@ -11,6 +11,7 @@ def gregorian_to_lunar(birth_date: datetime) -> str:
     except Exception as e:
         return f"Error converting date: {str(e)}"
 
+
 def get_lunar_info(birth_date: datetime) -> dict:
     """Get detailed lunar calendar information"""
     try:

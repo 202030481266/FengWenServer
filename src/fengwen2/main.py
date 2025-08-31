@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # load env variables
 load_dotenv()
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting up the application...")
@@ -36,12 +37,12 @@ async def lifespan(app: FastAPI):
         logger.info("All services started successfully")
     except Exception as e:
         logger.error(f"Error during startup: {e}")
-        raise # stop the service
-    
+        raise  # stop the service
+
     app.state.service_manager = service_manager
-    
-    yield # start the app service
-    
+
+    yield  # start the app service
+
     logger.info("Shutting down the application...")
     try:
         await service_manager.shutdown()
@@ -49,10 +50,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
 
+
 app = FastAPI(
     title="Astrology Fortune API",
     version="1.0.0",
-    description="Astrology service backend", 
+    description="Astrology service backend",
     lifespan=lifespan
 )
 
@@ -72,6 +74,7 @@ if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 else:
     logger.warning("Static directory not found")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -111,4 +114,5 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -68,12 +68,15 @@ def clean_text(text: str) -> str:
         return ""
     return html.escape(text.strip()[:200])
 
+
 # use dependency injection
 def get_email_service():
     return get_service_manager().get_email_service()
 
+
 def get_shopify_service():
     return get_service_manager().get_shopify_service()
+
 
 def get_astrology_service():
     return get_service_manager().get_astrology_service()
@@ -81,9 +84,9 @@ def get_astrology_service():
 
 @router.post("/submit-info")
 async def submit_user_info(
-    user_info: UserInfoRequest, 
-    db: Session = Depends(get_db),
-    astrology_service = Depends(get_astrology_service)
+        user_info: UserInfoRequest,
+        db: Session = Depends(get_db),
+        astrology_service=Depends(get_astrology_service)
 ):
     """Submit user info and get preview result"""
     logger.info(f"[API] User info submission started for email: {user_info.email}")
@@ -105,8 +108,8 @@ async def submit_user_info(
 
 @router.post("/send-verification")
 async def send_verification_code(
-    request: EmailRequest,
-    email_service = Depends(get_email_service)
+        request: EmailRequest,
+        email_service=Depends(get_email_service)
 ):
     """Send email verification code"""
     try:
@@ -122,10 +125,10 @@ async def send_verification_code(
 
 @router.post("/verify-email")
 async def verify_email(
-    request: VerificationRequest, 
-    db: Session = Depends(get_db),
-    email_service = Depends(get_email_service),
-    astrology_service = Depends(get_astrology_service)
+        request: VerificationRequest,
+        db: Session = Depends(get_db),
+        email_service=Depends(get_email_service),
+        astrology_service=Depends(get_astrology_service)
 ):
     """Verify email and provide full results"""
     try:
@@ -155,10 +158,10 @@ async def verify_email(
 
 @router.post("/webhook/shopify")
 async def shopify_webhook(
-    request: Request, 
-    db: Session = Depends(get_db),
-    shopify_service = Depends(get_shopify_service),
-    email_service = Depends(get_email_service)
+        request: Request,
+        db: Session = Depends(get_db),
+        shopify_service=Depends(get_shopify_service),
+        email_service=Depends(get_email_service)
 ):
     """Handle Shopify payment webhooks with better error handling"""
     try:
@@ -252,10 +255,10 @@ async def shopify_webhook(
 
 @router.post("/admin/resend-result-email")
 async def resend_result_email(
-    request: Dict,
-    db: Session = Depends(get_db),
-    _: str = Depends(verify_admin_auth),
-    email_service = Depends(get_email_service)
+        request: Dict,
+        db: Session = Depends(get_db),
+        _: str = Depends(verify_admin_auth),
+        email_service=Depends(get_email_service)
 ):
     """Manually resend result email for a record"""
     record_id = request.get("record_id")
@@ -378,8 +381,8 @@ async def update_translation(translation_id: int, translation: TranslationPairUp
 
 @router.post("/verify-email-first")
 async def verify_email_first(
-    request: VerificationRequest,
-    email_service = Depends(get_email_service)
+        request: VerificationRequest,
+        email_service=Depends(get_email_service)
 ):
     logger.info(f"[API] Email verification started for: {request.email}")
 
@@ -393,10 +396,10 @@ async def verify_email_first(
 
 @router.post("/astrology/calculate")
 async def calculate_astrology(
-    user_info: UserInfoRequest, 
-    db: Session = Depends(get_db),
-    email_service = Depends(get_email_service),
-    astrology_service = Depends(get_astrology_service)
+        user_info: UserInfoRequest,
+        db: Session = Depends(get_db),
+        email_service=Depends(get_email_service),
+        astrology_service=Depends(get_astrology_service)
 ):
     logger.info(f"[API] Astrology calculation started for email: {user_info.email}")
 
@@ -416,11 +419,11 @@ async def calculate_astrology(
                                                  user_info.birth_time, user_info.gender, db)
 
         result = await astrology_service.process_complete_astrology(record, db)
-        
+
         # Cache the result
         await CacheManager.set_cached_result(cache_key, result, CACHE_TTL)
         logger.info(f"[API] Result cached for email: {user_info.email}")
-        
+
         return result
     except HTTPException as e:
         raise e
@@ -431,13 +434,13 @@ async def calculate_astrology(
 
 @router.post("/admin/cache/invalidate")
 async def invalidate_cache(
-    request: Dict,
-    _: str = Depends(verify_admin_auth)
+        request: Dict,
+        _: str = Depends(verify_admin_auth)
 ):
     """Invalidate cache for a specific email or all cache"""
     email = request.get("email")
     clear_all = request.get("clear_all", False)
-    
+
     try:
         if clear_all:
             await CacheManager.clear_all_cache()
@@ -457,21 +460,21 @@ async def get_cache_stats(_: str = Depends(verify_admin_auth)):
     """Get Redis cache statistics"""
     try:
         backend = FastAPICache.get_backend()
-        info = await backend.client.info("stats")
-        dbsize = await backend.client.dbsize()
-        
+        info = await backend.redis.info("stats")
+        dbsize = await backend.redis.dbsize()
+
         # Count astrology cache keys
         astrology_keys = 0
-        async for _ in backend.client.scan_iter(match="astrology-cache:*"):
+        async for _ in backend.redis.scan_iter(match="astrology-cache:*"):
             astrology_keys += 1
-        
+
         return {
             "total_keys": dbsize,
             "astrology_cache_keys": astrology_keys,
             "hits": info.get("keyspace_hits", 0),
             "misses": info.get("keyspace_misses", 0),
-            "hit_rate": round(info.get("keyspace_hits", 0) / 
-                            (info.get("keyspace_hits", 0) + info.get("keyspace_misses", 1)) * 100, 2)
+            "hit_rate": round(info.get("keyspace_hits", 0) /
+                              (info.get("keyspace_hits", 0) + info.get("keyspace_misses", 1)) * 100, 2)
         }
     except Exception as e:
         logger.error(f"Error getting cache stats: {e}")

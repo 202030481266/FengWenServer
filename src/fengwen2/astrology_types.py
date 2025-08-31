@@ -11,6 +11,7 @@ class ZhenInfo(BaseModel):
     weidu: str
     shicha: str
 
+
 class BaseInfo(BaseModel):
     """基本信息"""
     zhen: ZhenInfo | None = None
@@ -22,6 +23,7 @@ class BaseInfo(BaseModel):
     jiaoyun: str
     zhengge: str | None = None
     wuxing_xiji: str | None = None
+
 
 class XiyongshenInfo(BaseModel):
     """喜用神信息"""
@@ -54,6 +56,7 @@ class XiyongshenInfo(BaseModel):
     yinyang: str
     wuxingxiji: str | None = None
 
+
 # --- 八字测算 (Bazi Calculation) ---
 
 class BaziInfo(BaseModel):
@@ -62,6 +65,7 @@ class BaziInfo(BaseModel):
     tg_cg_god: List[str]
     bazi: str
     na_yin: str
+
 
 class ChengguInfo(BaseModel):
     """称骨信息"""
@@ -72,6 +76,7 @@ class ChengguInfo(BaseModel):
     total_weight: str
     description: str
 
+
 class WuxingInfo(BaseModel):
     """五行信息"""
     detail_desc: str
@@ -79,26 +84,32 @@ class WuxingInfo(BaseModel):
     simple_description: str
     detail_description: str
 
+
 class YinyuanInfo(BaseModel):
     """姻缘信息"""
     sanshishu_yinyuan: str
+
 
 class SanshishuCaiyun(BaseModel):
     """三世书财运"""
     simple_desc: str
     detail_desc: str
 
+
 class CaiyunInfo(BaseModel):
     """财运信息"""
     sanshishu_caiyun: SanshishuCaiyun
+
 
 class SizhuInfo(BaseModel):
     """四柱信息"""
     rizhu: str
 
+
 class MingyunInfo(BaseModel):
     """命运信息"""
     sanshishu_mingyun: str
+
 
 class CesuanResult(BaseModel):
     """八字测算结果"""
@@ -114,6 +125,7 @@ class CesuanResult(BaseModel):
     xz: str
     xiyongshen: XiyongshenInfo
 
+
 # --- 六道轮回 (Liudao Reincarnation) ---
 
 class LiudaoInfoItem(BaseModel):
@@ -122,10 +134,12 @@ class LiudaoInfoItem(BaseModel):
     liudao_simple_desc: str
     liudao_detail_desc: str
 
+
 class Minggua(BaseModel):
     """命卦"""
     minggua_name: str
     minggua_fangwei: str
+
 
 class ExtendedBaseInfo(BaseInfo):
     """
@@ -150,16 +164,19 @@ class ExtendedBaseInfo(BaseInfo):
     dizhi_liuyi: str | None = None
     xiyongshen: XiyongshenInfo | None = None
 
+
 class LiudaoDetails(BaseModel):
     """六道详细信息"""
     past_info: LiudaoInfoItem
     now_info: LiudaoInfoItem
     future_info: LiudaoInfoItem
 
+
 class LiudaoInfo(BaseModel):
     """六道信息"""
     base_info: ExtendedBaseInfo
     liudao_info: LiudaoDetails
+
 
 # --- 正缘画像 (Zhengyuan Portrait) ---
 
@@ -173,12 +190,14 @@ class HuaxiangInfo(BaseModel):
     body_shape: str
     profile_image: str | None = None
 
+
 class TezhiInfo(BaseModel):
     """真爱特质"""
     romantic_personality: str
     family_background: str
     career_wealth: str
     marital_happiness: str
+
 
 class ZhiyinInfo(BaseModel):
     """真爱指引"""
@@ -187,12 +206,14 @@ class ZhiyinInfo(BaseModel):
     interaction_model: str
     love_advice: str
 
+
 class ZhengyuanDetails(BaseModel):
     """正缘详细信息"""
     huaxiang: HuaxiangInfo
     tezhi: TezhiInfo
     zhiyin: ZhiyinInfo
     yunshi: str
+
 
 class ZhengyuanInfo(BaseModel):
     """正缘信息"""
@@ -209,12 +230,14 @@ class ApiBaziResponse(BaseModel):
     success: bool | None = None
     data: CesuanResult
 
+
 class ApiLiudaoResponse(BaseModel):
     """六道API响应数据"""
     errcode: int | None = None
     errmsg: str | None = None
     success: bool | None = None
     data: LiudaoInfo
+
 
 class ApiZhengyuanResponse(BaseModel):
     """正缘API响应数据"""
@@ -223,11 +246,13 @@ class ApiZhengyuanResponse(BaseModel):
     success: bool | None = None
     data: ZhengyuanInfo
 
+
 class AstrologyResults(BaseModel):
     """合并测算结果（包含中英文）"""
     bazi: ApiBaziResponse
     liudao: ApiLiudaoResponse
     zhengyuan: ApiZhengyuanResponse
+
 
 class LunarInfo(BaseModel):
     """日历中的农历信息"""
@@ -236,6 +261,7 @@ class LunarInfo(BaseModel):
     day: int
     formatted: str
 
+
 class CalendarInfo(BaseModel):
     """日历信息"""
     success: bool
@@ -243,6 +269,7 @@ class CalendarInfo(BaseModel):
     solar_date: str
     birth_time: str
     lunar_info: LunarInfo
+
 
 class AstrologyApiResponse(BaseModel):
     """最终的、完整的API响应模型"""

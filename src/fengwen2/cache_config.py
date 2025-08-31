@@ -12,11 +12,12 @@ logger = logging.getLogger(__name__)
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 CACHE_TTL = int(os.getenv("CACHE_TTL", 3600))  # 1 hour default
 
+
 async def init_cache():
     """Initialize Redis cache connection"""
     redis_client = redis.from_url(REDIS_URL, encoding="utf8", decode_responses=True)
     FastAPICache.init(RedisBackend(redis_client), prefix="astrology-cache:")
-    
+
 
 def generate_cache_key(prefix: str, **kwargs) -> str:
     """Generate a consistent cache key from request parameters"""
@@ -29,7 +30,7 @@ def generate_cache_key(prefix: str, **kwargs) -> str:
 
 class CacheManager:
     """Helper class for cache management"""
-    
+
     @staticmethod
     def generate_astrology_cache_key(user_info) -> str:
         """Generate cache key for astrology calculation"""
@@ -41,7 +42,7 @@ class CacheManager:
             birth_time=user_info.birth_time,
             gender=user_info.gender
         )
-    
+
     @staticmethod
     async def get_cached_result(cache_key: str):
         """Get cached result by key"""
@@ -58,7 +59,7 @@ class CacheManager:
         except Exception as e:
             logger.error(f"Error getting cached result: {e}")
             return None
-    
+
     @staticmethod
     async def set_cached_result(cache_key: str, result: dict, ttl: int):
         """Cache result with TTL"""
@@ -69,7 +70,7 @@ class CacheManager:
             logger.info(f"Result cached with TTL {ttl}s for key: {cache_key}")
         except Exception as e:
             logger.error(f"Error setting cached result: {e}")
-    
+
     @staticmethod
     async def invalidate_user_cache(email: str):
         """Invalidate all cached data for a specific user"""
@@ -82,7 +83,7 @@ class CacheManager:
             logger.info(f"Cache invalidated for email: {email}")
         except Exception as e:
             logger.error(f"Error invalidating cache: {e}")
-    
+
     @staticmethod
     async def clear_all_cache():
         """Clear all astrology cache (use with caution)"""
