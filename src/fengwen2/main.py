@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from src.fengwen2.api_routes import router
 from src.fengwen2.cache_config import init_cache
+from src.fengwen2.database import create_tables
 from src.fengwen2.service_manager import get_service_manager
 
 # app logger
@@ -32,6 +33,11 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up the application...")
     service_manager = get_service_manager()
     try:
+        # create the tables
+        logger.info("Creating database tables...")
+        create_tables()
+        logger.info("Database tables created successfully")
+        
         await init_cache()
         await service_manager.startup()
         logger.info("All services started successfully")
