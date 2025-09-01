@@ -14,9 +14,9 @@ class ServiceManager:
 
     def __init__(self):
         if not self._initialized:
-            from .email_service import EmailService
-            from .shopify_service import ShopifyPaymentService
-            from .astrology_service import AstrologyService
+            from src.fengwen2.email_service import EmailService
+            from src.fengwen2.shopify_service import ShopifyPaymentService
+            from src.fengwen2.astrology_service import AstrologyService
 
             self.email_service = EmailService()
             self.shopify_service = ShopifyPaymentService()

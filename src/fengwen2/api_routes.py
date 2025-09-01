@@ -224,11 +224,8 @@ async def shopify_webhook(
 
                 # send the full result to user's email
                 try:
-                    email_sent = await email_service.send_astrology_result_email(
-                        record.email,
-                        record.name,
-                        record.full_result_en or "Your personalized astrology reading is ready!"
-                    )
+                    email_sent = await email_service.send_astrology_result_email(record.email,
+                                                                                 record.full_result_en or "Your personalized astrology reading is ready!")
 
                     if email_sent:
                         logger.info(f"[WEBHOOK] Result email sent to {record.email}")
@@ -275,11 +272,8 @@ async def resend_result_email(
         raise HTTPException(status_code=400, detail="Record not purchased")
 
     try:
-        email_sent = await email_service.send_astrology_result_email(
-            record.email,
-            record.name,
-            record.full_result_en or "Your astrology reading"
-        )
+        email_sent = await email_service.send_astrology_result_email(record.email,
+                                                                     record.full_result_en or "Your astrology reading")
 
         if email_sent:
             return {"message": f"Email sent to {record.email}"}

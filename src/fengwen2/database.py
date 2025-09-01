@@ -47,7 +47,6 @@ class SiteConfig(Base):
 
 
 def create_tables():
-    from src.fengwen2.admin_models import Product, TranslationPair
     Base.metadata.create_all(bind=engine)
 
 

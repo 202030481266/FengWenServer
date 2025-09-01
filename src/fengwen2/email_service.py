@@ -1,22 +1,18 @@
-import base64
 import logging
 import os
 import random
 import string
 from datetime import datetime, timedelta
-from email import encoders
-from email.mime.base import MIMEBase
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from dotenv import load_dotenv
 from tencentcloud.common import credential
 from tencentcloud.common.exception.tencent_cloud_sdk_exception import TencentCloudSDKException
 from tencentcloud.ses.v20201002 import ses_client, models
 
+from src.fengwen2.astrology_views import AstrologyResultsView
+
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
@@ -40,12 +36,14 @@ class EmailService:
         self.verification_codes = {}
         self.verified_emails = {}
 
-    def _log_email_action(self, action: str, email: str, **kwargs):
+    @staticmethod
+    def _log_email_action(action: str, email: str, **kwargs):
         """Centralized logging for email actions"""
         extra_info = " ".join(f"{k}: {v}" for k, v in kwargs.items())
         logger.info(f"[EMAIL] {action} for {email}. {extra_info}")
 
-    def generate_verification_code(self, length: int = 6) -> str:
+    @staticmethod
+    def generate_verification_code(length: int = 6) -> str:
         """Generate random verification code"""
         return ''.join(random.choices(string.digits, k=length))
 
@@ -65,7 +63,7 @@ class EmailService:
             self._log_email_action("Sending verification code", email,
                                    code=verification_code, template=self.verification_template)
 
-            resp = self.client.SendEmail(req)
+            self.client.SendEmail(req)
             self._log_email_action("Email sent successfully", email)
 
             self.verification_codes[email] = verification_code
@@ -109,72 +107,93 @@ class EmailService:
         """Get verification code for testing purposes"""
         return self.verification_codes.get(email)
 
-    async def send_astrology_result_email(self, email: str, name: str, astrology_result: str) -> bool:
+    @staticmethod
+    def _convert_full_result_to_html_template_parameters(full_result: Dict[str, Any]) -> Dict[str, Any]:
+        """用来将响应的json数据转换为短信模板中的参数"""
+        results = AstrologyResultsView.model_validate(full_result)
+        bazi_data = results.bazi.data
+        liudao_data = results.liudao.data
+        zhengyuan_data = results.zhengyuan.data
+        template_parameters = {
+            # Basic Information
+            "name": bazi_data.base_info.name,
+            "na_yin": bazi_data.bazi_info.na_yin,
+            "gongli": bazi_data.base_info.gongli,
+            "nongli": bazi_data.base_info.nongli,
+            "sx": bazi_data.sx,
+            "xz": bazi_data.xz,
+            "bazi": bazi_data.bazi_info.bazi,
+            "zhengge": bazi_data.base_info.zhengge or "", # 确保提供一个值
+
+            # Analysis Sections
+            "wuxing_desc": bazi_data.wuxing.detail_description,
+            "yinyuan_desc": bazi_data.yinyuan.sanshishu_yinyuan,
+            "caiyun_desc": bazi_data.caiyun.sanshishu_caiyun.detail_desc,
+
+            # Liudao Sections
+            "liudao_now_desc": liudao_data.liudao_info.now_info.liudao_detail_desc,
+            "liudao_past_desc": liudao_data.liudao_info.past_info.liudao_detail_desc,
+            "liudao_future_desc": liudao_data.liudao_info.future_info.liudao_detail_desc,
+
+            # true love profile
+            "face_shape": zhengyuan_data.zhengyuan_info.huaxiang.face_shape,
+            "eyebrow_shape": zhengyuan_data.zhengyuan_info.huaxiang.eyebrow_shape,
+            "eye_shape": zhengyuan_data.zhengyuan_info.huaxiang.eye_shape,
+            "mouth_shape": zhengyuan_data.zhengyuan_info.huaxiang.mouth_shape,
+            "nose_shape": zhengyuan_data.zhengyuan_info.huaxiang.nose_shape,
+            "body_shape": zhengyuan_data.zhengyuan_info.huaxiang.body_shape,
+
+            # true love traits
+            "romantic_personality": zhengyuan_data.zhengyuan_info.tezhi.romantic_personality,
+            "family_background": zhengyuan_data.zhengyuan_info.tezhi.family_background,
+            "career_wealth": zhengyuan_data.zhengyuan_info.tezhi.career_wealth,
+            "marital_happiness": zhengyuan_data.zhengyuan_info.tezhi.marital_happiness,
+
+            # true love guidance
+            "love_location": zhengyuan_data.zhengyuan_info.zhiyin.love_location,
+            "meeting_method": zhengyuan_data.zhengyuan_info.zhiyin.meeting_method,
+            "interaction_model": zhengyuan_data.zhengyuan_info.zhiyin.interaction_model,
+            "love_advice": zhengyuan_data.zhengyuan_info.zhiyin.love_advice,
+
+            # true love fortune
+            "yunshi_desc": zhengyuan_data.zhengyuan_info.yunshi,
+
+            # Elements Analysis
+            "jin_score": int(bazi_data.xiyongshen.jin_score),
+            "mu_score": int(bazi_data.xiyongshen.mu_score),
+            "shui_score": int(bazi_data.xiyongshen.shui_score),
+            "huo_score": int(bazi_data.xiyongshen.huo_score),
+            "tu_score": int(bazi_data.xiyongshen.tu_score),
+            "tonglei": bazi_data.xiyongshen.tonglei,
+            "yilei": bazi_data.xiyongshen.yilei,
+
+            # Ba Zi Summary
+            "qiangruo": bazi_data.xiyongshen.qiangruo,
+            "xiyongshen_desc": bazi_data.xiyongshen.xiyongshen_desc,
+        }
+        return {k : str(v) for k, v in template_parameters.items()}
+
+    async def send_astrology_result_email(self, email: str, astrology_result: str) -> bool:
         """Send astrology result to user"""
         try:
             import json
 
             # Properly escape the JSON for template
-            escaped_result = astrology_result.replace('"', '\\"').replace('\n', '\\n')
+            full_result = json.loads(astrology_result)
 
             req = models.SendEmailRequest()
             req.FromEmailAddress = f"results@{self.domain}"
             req.Destination = [email]
             req.Template = models.Template()
             req.Template.TemplateID = int(self.result_template)
-            req.Template.TemplateData = json.dumps({
-                "name": name,
-                "result": escaped_result
-            })
+            req.Template.TemplateData = json.dumps(self._convert_full_result_to_html_template_parameters(full_result))
             req.Subject = "Your Astrology Reading Results"
 
             logger.info(f"[EMAIL] Sending astrology result to {email}")
-            resp = self.client.SendEmail(req)
+            self.client.SendEmail(req)
             logger.info(f"[EMAIL] Astrology result email sent successfully to {email}")
             return True
 
         except TencentCloudSDKException as err:
             logger.error(f"[EMAIL] Send astrology result error for {email}: {err}")
-            return False
-
-    async def send_email_with_attachments(
-            self,
-            to_email: str,
-            subject: str,
-            body: str,
-            attachments: list
-    ) -> bool:
-        """发送带附件的邮件"""
-        try:
-            # 创建消息
-            msg = MIMEMultipart()
-            msg['From'] = f"noreply@{self.domain}"
-            msg['To'] = to_email
-            msg['Subject'] = subject
-
-            # 添加正文
-            msg.attach(MIMEText(body, 'plain'))
-
-            # 添加附件
-            for attachment in attachments:
-                part = MIMEBase('application', 'octet-stream')
-                part.set_payload(attachment['content'])
-                encoders.encode_base64(part)
-                part.add_header(
-                    'Content-Disposition',
-                    f'attachment; filename={attachment["filename"]}'
-                )
-                msg.attach(part)
-
-            # 使用腾讯云SES的SendRawEmail API
-            req = models.SendRawEmailRequest()
-            req.FromEmailAddress = msg['From']
-            req.Destinations = [to_email]
-            req.RawMessage = base64.b64encode(msg.as_bytes()).decode()
-
-            resp = self.client.SendRawEmail(req)
-            return True
-
-        except Exception as e:
-            logger.error(f"Error sending email with attachments: {e}")
             return False
