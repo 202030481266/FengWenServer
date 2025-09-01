@@ -61,7 +61,7 @@ class AstrologyDataMaskingService:
             return response
 
         masked_response = response.model_copy(deep=True)
-        liudao_details = masked_response.data.liudao_info.liudao_info
+        liudao_details = masked_response.data.liudao_info
 
         # 脱敏过去、现在、未来的信息
         liudao_details.past_info = AstrologyDataMaskingService.mask_liudao_item(liudao_details.past_info)
@@ -117,7 +117,7 @@ class AstrologyDataMaskingService:
             return response
 
         masked_response = response.model_copy(deep=True)
-        zhengyuan_details = masked_response.data.zhengyuan_info.zhengyuan_info
+        zhengyuan_details = masked_response.data.zhengyuan_info
 
         # 脱敏各个部分
         zhengyuan_details.huaxiang = AstrologyDataMaskingService.mask_huaxiang(zhengyuan_details.huaxiang)
