@@ -16,9 +16,11 @@ from src.fengwen2.admin_models import (
     UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate,
     TranslationPairRequest
 )
+from src.fengwen2.astrology_views import AstrologyApiResponseView
 from src.fengwen2.cache_config import CACHE_TTL, CacheManager
 from src.fengwen2.database import get_db, AstrologyRecord
 from src.fengwen2.service_manager import get_service_manager
+from src.fengwen2.astrology_data_mask import AstrologyDataMaskingService
 
 logger = logging.getLogger(__name__)
 
@@ -413,6 +415,16 @@ async def calculate_astrology(
                                                  user_info.birth_time, user_info.gender, db)
 
         result = await astrology_service.process_complete_astrology(record, db)
+
+        # 对数据进行脱敏处理
+        astrology_response = AstrologyApiResponseView.model_validate(result)
+        masking_service = AstrologyDataMaskingService()
+        result = masking_service.mask_astrology_response(
+            astrology_response,
+            mask_liudao=True,
+            mask_zhengyuan=True,
+        )
+        result = AstrologyApiResponseView.model_dump(result)
 
         # Cache the result
         await CacheManager.set_cached_result(cache_key, result, CACHE_TTL)
