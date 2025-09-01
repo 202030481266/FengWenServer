@@ -418,8 +418,7 @@ async def calculate_astrology(
 
         # 对数据进行脱敏处理
         astrology_response = AstrologyApiResponseView.model_validate(result)
-        masking_service = AstrologyDataMaskingService()
-        result = masking_service.mask_astrology_response(
+        result = AstrologyDataMaskingService.mask_astrology_response(
             astrology_response,
             mask_liudao=True,
             mask_zhengyuan=True,
