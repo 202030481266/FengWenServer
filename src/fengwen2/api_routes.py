@@ -60,7 +60,8 @@ def validate_url(url: str) -> bool:
             return False
         domain = parsed.netloc.split(':')[0]
         return any(domain.endswith(allowed) for allowed in ALLOWED_DOMAINS)
-    except:
+    except Exception as e:
+        logger.error("Exception while validating URL: %s", e, exc_info=True)
         return False
 
 
@@ -174,14 +175,15 @@ async def shopify_webhook(
             record = db.query(AstrologyRecord).filter(AstrologyRecord.id == record_id).first()
 
             if record:
-                if record.is_purchased and record.shopify_order_id:
-                    logger.info(f"[WEBHOOK] Order already processed for record {record_id}")
-                    return {"status": "already_processed"}
+                new_order_id = str(webhook_data.get("id"))
 
-                # update order status
+                # 防止重复发送邮件
+                if record.shopify_order_id == new_order_id:
+                    logger.info(f"[WEBHOOK] Order {new_order_id} has already been processed for record {record_id}")
+                    return {"status": "already_processed_duplicate_webhook"}
+
                 record.is_purchased = True
-                record.shopify_order_id = str(webhook_data.get("id"))
-                record.purchase_date = datetime.now()
+                record.shopify_order_id = new_order_id
 
                 try:
                     db.commit()
