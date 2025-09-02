@@ -77,7 +77,8 @@ class AstrologyDataMaskingService:
         """对真爱画像进行脱敏"""
         masked = huaxiang.model_copy()
         masked.face_shape = AstrologyDataMaskingService.mask_text(huaxiang.face_shape, preview_length=10, lang=lang)
-        masked.eyebrow_shape = AstrologyDataMaskingService.mask_text(huaxiang.eyebrow_shape, preview_length=10, lang=lang)
+        masked.eyebrow_shape = AstrologyDataMaskingService.mask_text(huaxiang.eyebrow_shape, preview_length=10,
+                                                                     lang=lang)
         masked.eye_shape = AstrologyDataMaskingService.mask_text(huaxiang.eye_shape, preview_length=10, lang=lang)
         masked.mouth_shape = AstrologyDataMaskingService.mask_text(huaxiang.mouth_shape, preview_length=10, lang=lang)
         masked.nose_shape = AstrologyDataMaskingService.mask_text(huaxiang.nose_shape, preview_length=10, lang=lang)
@@ -88,10 +89,13 @@ class AstrologyDataMaskingService:
     def mask_tezhi(tezhi: TezhiInfoView, lang: str = 'en') -> TezhiInfoView:
         """对真爱特质进行脱敏"""
         masked = tezhi.model_copy()
-        masked.romantic_personality = AstrologyDataMaskingService.mask_text(tezhi.romantic_personality, preview_length=25, lang=lang)
-        masked.family_background = AstrologyDataMaskingService.mask_text(tezhi.family_background, preview_length=25, lang=lang)
+        masked.romantic_personality = AstrologyDataMaskingService.mask_text(tezhi.romantic_personality,
+                                                                            preview_length=25, lang=lang)
+        masked.family_background = AstrologyDataMaskingService.mask_text(tezhi.family_background, preview_length=25,
+                                                                         lang=lang)
         masked.career_wealth = AstrologyDataMaskingService.mask_text(tezhi.career_wealth, preview_length=25, lang=lang)
-        masked.marital_happiness = AstrologyDataMaskingService.mask_text(tezhi.marital_happiness, preview_length=25, lang=lang)
+        masked.marital_happiness = AstrologyDataMaskingService.mask_text(tezhi.marital_happiness, preview_length=25,
+                                                                         lang=lang)
         return masked
 
     @staticmethod
@@ -99,8 +103,10 @@ class AstrologyDataMaskingService:
         """对真爱指引进行脱敏"""
         masked = zhiyin.model_copy()
         masked.love_location = AstrologyDataMaskingService.mask_text(zhiyin.love_location, preview_length=20, lang=lang)
-        masked.meeting_method = AstrologyDataMaskingService.mask_text(zhiyin.meeting_method, preview_length=20, lang=lang)
-        masked.interaction_model = AstrologyDataMaskingService.mask_text(zhiyin.interaction_model, preview_length=20, lang=lang)
+        masked.meeting_method = AstrologyDataMaskingService.mask_text(zhiyin.meeting_method, preview_length=20,
+                                                                      lang=lang)
+        masked.interaction_model = AstrologyDataMaskingService.mask_text(zhiyin.interaction_model, preview_length=20,
+                                                                         lang=lang)
         masked.love_advice = AstrologyDataMaskingService.mask_text(zhiyin.love_advice, preview_length=30, lang=lang)
         return masked
 
@@ -116,7 +122,8 @@ class AstrologyDataMaskingService:
         zhengyuan_details.huaxiang = AstrologyDataMaskingService.mask_huaxiang(zhengyuan_details.huaxiang, lang=lang)
         zhengyuan_details.tezhi = AstrologyDataMaskingService.mask_tezhi(zhengyuan_details.tezhi, lang=lang)
         zhengyuan_details.zhiyin = AstrologyDataMaskingService.mask_zhiyin(zhengyuan_details.zhiyin, lang=lang)
-        zhengyuan_details.yunshi = AstrologyDataMaskingService.mask_text(zhengyuan_details.yunshi, preview_length=40, lang=lang)
+        zhengyuan_details.yunshi = AstrologyDataMaskingService.mask_text(zhengyuan_details.yunshi, preview_length=40,
+                                                                         lang=lang)
 
         return masked_response
 
