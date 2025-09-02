@@ -65,3 +65,11 @@ class TranslationPairRequest(BaseModel):
 class TranslationPairUpdate(BaseModel):
     chinese_text: str
     english_text: str
+
+
+class CreatePaymentLinkRequest(BaseModel):
+    record_id: int
+
+
+class PaymentLinkResponse(BaseModel):
+    shopify_url: str

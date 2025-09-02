@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from src.fengwen2.admin_models import (
     Product, TranslationPair as DBTranslationPair,
     UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate,
-    TranslationPairRequest
+    TranslationPairRequest, CreatePaymentLinkRequest, PaymentLinkResponse
 )
 from src.fengwen2.astrology_views import AstrologyApiResponseView
 from src.fengwen2.cache_config import CACHE_TTL, CacheManager
@@ -403,9 +403,9 @@ async def calculate_astrology(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/astrology/create-payment-link")
+@router.post("/astrology/create-payment-link", response_model=PaymentLinkResponse)
 async def create_payment_link(
-        record_id: str,
+        request_data: CreatePaymentLinkRequest,
         db: Session = Depends(get_db),
         shopify_service=Depends(get_shopify_service)
 ):
@@ -413,12 +413,12 @@ async def create_payment_link(
     为给定的记录ID创建一个新的Shopify支付链接。
     当前端用户点击“解锁”按钮时，应该调用此接口。
     """
-    logger.info(f"[API] Payment link creation requested for record_id: {record_id}")
+    logger.info(f"[API] Payment link creation requested for record_id: {request_data.record_id}")
 
-    record = db.query(AstrologyRecord).filter(AstrologyRecord.id == record_id).first()
+    record = db.query(AstrologyRecord).filter(AstrologyRecord.id == request_data.record_id).first()
 
     if not record:
-        logger.error(f"[API] Record not found for id: {record_id}")
+        logger.error(f"[API] Record not found for id: {request_data.record_id}")
         raise HTTPException(status_code=404, detail="Astrology record not found.")
 
     try:
@@ -431,7 +431,7 @@ async def create_payment_link(
         return {"shopify_url": checkout_url}
 
     except Exception as e:
-        logger.error(f"Error in create_payment_link for record_id {record_id}: {e}", exc_info=True)
+        logger.error(f"Error in create_payment_link for record_id {request_data.record_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An error occurred while creating the payment link.")
 
 
