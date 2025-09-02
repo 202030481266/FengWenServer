@@ -161,4 +161,4 @@ class AstrologyApiResponseView(BaseModel):
     """最终的、完整的API响应视图模型"""
     astrology_results: AstrologyResultsView
     chinese: AstrologyResultsView
-    shopify_url: str
+    record_id: int

@@ -101,11 +101,10 @@ class AstrologyService:
         await self.generate_full_results(record, db)
         await self.generate_english_translation(record, db)
         db.refresh(record)  # refresh to get the latest data
-        checkout_url = await self.shopify_service.create_checkout_url(record.email, record.id)
-        return self.format_response(record, checkout_url)
+        return self.format_response(record)
 
     @staticmethod
-    def format_response(record: AstrologyRecord, checkout_url: str) -> Dict[str, Any]:
+    def format_response(record: AstrologyRecord) -> Dict[str, Any]:
         """Format API response based on available data"""
         if not record.full_result_en:
             logger.error(f"[SERVICE] No English translation available for record ID: {record.id}", exc_info=True)
@@ -134,11 +133,8 @@ class AstrologyService:
                 logger.warning(f"[SERVICE] Failed to parse Chinese results for record ID: {record.id}: {e}")
                 chinese_data = None
 
-        # full response
-        response = {
-            "astrology_results": astrology_results,
-            "shopify_url": checkout_url or "https://example.com/checkout"
-        }
+        # final api response
+        response = {"astrology_results": astrology_results}
 
         if chinese_data:
             response["chinese"] = chinese_data

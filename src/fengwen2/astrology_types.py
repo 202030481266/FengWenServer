@@ -275,4 +275,3 @@ class AstrologyApiResponse(BaseModel):
     """最终的、完整的API响应模型"""
     astrology_results: AstrologyResults
     chinese: AstrologyResults
-    shopify_url: str

@@ -125,39 +125,6 @@ async def send_verification_code(
         raise HTTPException(status_code=500, detail="Failed to send verification code")
 
 
-@router.post("/verify-email")
-async def verify_email(
-        request: VerificationRequest,
-        db: Session = Depends(get_db),
-        email_service=Depends(get_email_service),
-        astrology_service=Depends(get_astrology_service)
-):
-    """Verify email and provide full results"""
-    try:
-        if not email_service.verify_code(request.email, request.code):
-            raise HTTPException(status_code=400, detail="Invalid verification code")
-
-        record = db.query(AstrologyRecord).filter(
-            AstrologyRecord.email == request.email
-        ).order_by(AstrologyRecord.created_at.desc()).first()
-
-        if not record:
-            raise HTTPException(status_code=404, detail="User record not found")
-
-        response = await astrology_service.process_complete_astrology(record, db)
-        return {
-            "astrology_results": response["astrology_results"],
-            "checkout_url": response["shopify_url"],
-            "message": "Complete payment to receive your full reading via email."
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in verify_email: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.post("/webhook/shopify")
 async def shopify_webhook(
         request: Request,
@@ -415,26 +382,57 @@ async def calculate_astrology(
                                                  user_info.birth_time, user_info.gender, db)
 
         result = await astrology_service.process_complete_astrology(record, db)
+        result['record_id'] = record.id
 
-        # 对数据进行脱敏处理
-        astrology_response = AstrologyApiResponseView.model_validate(result)
-        result = AstrologyDataMaskingService.mask_astrology_response(
-            astrology_response,
+        validated_data = AstrologyApiResponseView.model_validate(result)
+        masked_data_model = AstrologyDataMaskingService.mask_astrology_response(
+            validated_data,
             mask_liudao=True,
             mask_zhengyuan=True,
         )
-        result = AstrologyApiResponseView.model_dump(result)
 
-        # Cache the result
-        await CacheManager.set_cached_result(cache_key, result, CACHE_TTL)
-        logger.info(f"[API] Result cached for email: {user_info.email}")
+        final_response_dict = masked_data_model.model_dump()
+        await CacheManager.set_cached_result(cache_key, final_response_dict, CACHE_TTL)
+        logger.info(f"[API] Preview result cached for email: {user_info.email}")
 
-        return result
+        return final_response_dict
     except HTTPException as e:
         raise e
     except Exception as e:
         logger.error(f"Error in calculate_astrology: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/astrology/create-payment-link")
+async def create_payment_link(
+        record_id: str,
+        db: Session = Depends(get_db),
+        shopify_service=Depends(get_shopify_service)
+):
+    """
+    为给定的记录ID创建一个新的Shopify支付链接。
+    当前端用户点击“解锁”按钮时，应该调用此接口。
+    """
+    logger.info(f"[API] Payment link creation requested for record_id: {record_id}")
+
+    record = db.query(AstrologyRecord).filter(AstrologyRecord.id == record_id).first()
+
+    if not record:
+        logger.error(f"[API] Record not found for id: {record_id}")
+        raise HTTPException(status_code=404, detail="Astrology record not found.")
+
+    try:
+        checkout_url = await shopify_service.create_checkout_url(record.email, record.id)
+        if not checkout_url:
+            logger.error(f"Failed to create Shopify checkout URL for record_id: {record.id}")
+            raise HTTPException(status_code=500, detail="Could not create payment link. Please try again later.")
+
+        logger.info(f"[API] Successfully created payment link for record_id: {record.id}")
+        return {"shopify_url": checkout_url}
+
+    except Exception as e:
+        logger.error(f"Error in create_payment_link for record_id {record_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An error occurred while creating the payment link.")
 
 
 @router.post("/admin/cache/invalidate")
