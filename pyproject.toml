@@ -27,6 +27,7 @@ dependencies = [
     "beautifulsoup4>=4.13.5",
     "pillow>=10.4.0",
     "fastapi-cache2[redis]>=0.2.2",
+    "gunicorn>=23.0.0",
 ]
 
 [project.optional-dependencies]
