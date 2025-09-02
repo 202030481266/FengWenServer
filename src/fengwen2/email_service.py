@@ -3,6 +3,7 @@ import os
 import random
 import string
 import json
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
 import redis
@@ -37,23 +38,23 @@ class EmailService:
     """Tencent Cloud SES email service with Redis for state management."""
 
     _VCODE_PREFIX = "vcode:"
+    _VERIFIED_PREFIX = "verified:"
 
     def __init__(self):
         if not redis_client:
             raise ConnectionError("EmailService cannot operate without a Redis connection.")
         self.redis = redis_client
 
-        # Tencent Cloud Credentials
+        # tencent config 
         self.secret_id = os.getenv("TENCENTCLOUD_SECRET_ID")
         self.secret_key = os.getenv("TENCENTCLOUD_SECRET_KEY")
         self.domain = os.getenv("EMAIL_DOMAIN", "mail.universalfuture.online")
-        
-        # Email Templates
         self.verification_template = os.getenv("EMAIL_TEMPLATE_VERIFICATION", "145744")
         self.result_template = os.getenv("EMAIL_TEMPLATE_ASTROLOGY_RESULT", "145745")
 
-        # Expiration settings from environment variables (with sensible defaults)
+        # redis config
         self.code_expiry_seconds = int(os.getenv("VERIFICATION_CODE_EXPIRY_SECONDS", 300))  # 5 minutes
+        self.verified_status_expiry_seconds = int(os.getenv("VERIFIED_STATUS_EXPIRY_SECONDS", 600))  # 10 minutes
 
         if not self.secret_id or not self.secret_key:
             raise ValueError("Missing Tencent Cloud credentials in environment variables")
@@ -102,23 +103,32 @@ class EmailService:
             return False
 
     def verify_code(self, email: str, code: str) -> bool:
-        """
-        Verify the email code from Redis. If successful, delete the code to prevent reuse.
-        This method is stateless regarding user verification status.
-        """
+        """Verify email code from Redis."""
         redis_key = f"{self._VCODE_PREFIX}{email}"
         stored_code = self.redis.get(redis_key)
 
         self._log_email_action("Verifying code", email, provided=code, stored=stored_code)
 
         if stored_code and stored_code == code:
-            # On successful verification, immediately delete the code to ensure it's single-use.
-            self.redis.delete(redis_key)
+            pipe = self.redis.pipeline()
+            pipe.delete(redis_key)
+            verified_key = f"{self._VERIFIED_PREFIX}{email}"
+            pipe.set(verified_key, "true", ex=self.verified_status_expiry_seconds)
+            pipe.execute()
+            
             self._log_email_action("Code verification successful", email)
             return True
 
         logger.warning(f"[EMAIL] Code verification failed for {email}")
         return False
+
+    def is_email_recently_verified(self, email: str) -> bool:
+        """Check if email's "verified" status key exists in Redis."""
+        verified_key = f"{self._VERIFIED_PREFIX}{email}"
+        is_verified = self.redis.exists(verified_key) > 0
+        
+        self._log_email_action("Verification status check", email, is_valid=is_verified)
+        return is_verified
 
     def get_verification_code_for_testing(self, email: str) -> Optional[str]:
         """Get verification code from Redis for testing purposes."""
