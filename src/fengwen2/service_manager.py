@@ -17,10 +17,19 @@ class ServiceManager:
             from src.fengwen2.email_service import EmailService
             from src.fengwen2.shopify_service import ShopifyPaymentService
             from src.fengwen2.astrology_service import AstrologyService
+            from src.fengwen2.mjml_render_service import MJMLEmailService
 
             self.email_service = EmailService()
             self.shopify_service = ShopifyPaymentService()
             self.astrology_service = AstrologyService()
+            self.mjml_render_service = MJMLEmailService(
+                template_dir="templates",  # 模板目录
+                mjml_options={
+                    "minify": True,  # 压缩HTML
+                    "beautify": False,  # 美化输出
+                    "validation_level": "soft"  # 验证级别：strict, soft, skip
+                }
+            )
 
             ServiceManager._initialized = True
             logger.info("ServiceManager initialized successfully")
@@ -39,6 +48,9 @@ class ServiceManager:
 
     def get_astrology_service(self):
         return self.astrology_service
+
+    def get_mjml_service(self):
+        return self.mjml_render_service
 
 
 # singleton pattern
