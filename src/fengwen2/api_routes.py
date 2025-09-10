@@ -203,7 +203,7 @@ async def shopify_webhook(
                     full_result_en = json.loads(str(record.full_result_en))
                     astrology_result = AstrologyResultsView.model_validate(full_result_en)
 
-                    # check whether to use the email template
+                    # pick the email template
                     advantage_element = astrology_result.ApiZhengyuanResponseView.data.xiyongshen.rizhu_tiangan
                     if advantage_element == '水' or advantage_element.lower() == 'water':
                         email_template = 'astrology_report_water.mjml.j2'
