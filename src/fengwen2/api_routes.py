@@ -16,7 +16,7 @@ from src.fengwen2.admin_models import (
     TranslationPairRequest, CreatePaymentLinkRequest, PaymentLinkResponse
 )
 from src.fengwen2.astrology_data_mask import AstrologyDataMaskingService
-from src.fengwen2.astrology_views import AstrologyApiResponseView
+from src.fengwen2.astrology_views import AstrologyApiResponseView, AstrologyResultsView
 from src.fengwen2.cache_config import CACHE_TTL, CacheManager
 from src.fengwen2.database import get_db, AstrologyRecord
 from src.fengwen2.service_manager import get_service_manager
@@ -84,6 +84,10 @@ def get_astrology_service():
     return get_service_manager().get_astrology_service()
 
 
+def get_mjml_service():
+    return get_service_manager().get_mjml_service()
+
+
 @router.post("/submit-info")
 async def submit_user_info(
         user_info: UserInfoRequest,
@@ -130,7 +134,8 @@ async def shopify_webhook(
         request: Request,
         db: Session = Depends(get_db),
         shopify_service=Depends(get_shopify_service),
-        email_service=Depends(get_email_service)
+        email_service=Depends(get_email_service),
+        mjml_service=Depends(get_mjml_service)
 ):
     """Handle Shopify payment webhooks with better error handling"""
     try:
@@ -139,6 +144,7 @@ async def shopify_webhook(
 
         logger.info(f"[WEBHOOK] Received Shopify webhook")
 
+        # verify the url is sent from shopify
         if os.getenv("ENVIRONMENT") == "production":
             if not shopify_service.verify_webhook(body, signature):
                 logger.error("[WEBHOOK] Invalid webhook signature")
@@ -182,7 +188,7 @@ async def shopify_webhook(
                     return {"status": "already_processed_duplicate_webhook"}
 
                 record.is_purchased = True
-                record.shopify_order_id = new_order_id
+                record.shopify_order_id = new_order_id # update the order_id
 
                 try:
                     db.commit()
@@ -194,8 +200,34 @@ async def shopify_webhook(
 
                 # send the full result to user's email
                 try:
-                    email_sent = await email_service.send_astrology_result_email(record.email,
-                                                                                 record.full_result_en or "Your personalized astrology reading is ready!")
+                    full_result_en = json.loads(str(record.full_result_en))
+                    astrology_result = AstrologyResultsView.model_validate(full_result_en)
+
+                    # check whether to use the email template
+                    advantage_element = astrology_result.ApiZhengyuanResponseView.data.xiyongshen.rizhu_tiangan
+                    if advantage_element == '水' or advantage_element.lower() == 'water':
+                        email_template = 'astrology_report_water.mjml.j2'
+                    elif advantage_element == '火' or advantage_element.lower() == 'fire':
+                        email_template = 'astrology_report_fire.mjml.j2'
+                    elif advantage_element == '金' or advantage_element.lower() == 'metal':
+                        email_template = 'astrology_report_metal.mjml.j2'
+                    elif advantage_element == '木' or advantage_element.lower() == 'wood':
+                        email_template = 'astrology_report_wood.mjml.j2'
+                    else:
+                        email_template = 'astrology_report_earth.mjml.j2'
+
+                    # render the result
+                    email_content = mjml_service.render_email(
+                        template_name=email_template,
+                        astrology_results=astrology_result
+                    )
+
+                    email_sent = await email_service.send_astrology_result_email(
+                        email=record.email,
+                        astrology_result=email_content,
+                        subject='Your Astrology Report',
+                        content_type='html'
+                    )
 
                     if email_sent:
                         logger.info(f"[WEBHOOK] Result email sent to {record.email}")
@@ -217,41 +249,6 @@ async def shopify_webhook(
         raise HTTPException(status_code=400, detail="Invalid JSON")
     except Exception as e:
         logger.error(f"[WEBHOOK] Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/admin/resend-result-email")
-async def resend_result_email(
-        request: Dict,
-        db: Session = Depends(get_db),
-        _: str = Depends(verify_admin_auth),
-        email_service=Depends(get_email_service)
-):
-    """Manually resend result email for a record"""
-    record_id = request.get("record_id")
-
-    if not record_id:
-        raise HTTPException(status_code=400, detail="record_id required")
-
-    record = db.query(AstrologyRecord).filter(AstrologyRecord.id == record_id).first()
-
-    if not record:
-        raise HTTPException(status_code=404, detail="Record not found")
-
-    if not record.is_purchased:
-        raise HTTPException(status_code=400, detail="Record not purchased")
-
-    try:
-        email_sent = await email_service.send_astrology_result_email(record.email,
-                                                                     record.full_result_en or "Your astrology reading")
-
-        if email_sent:
-            return {"message": f"Email sent to {record.email}"}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to send email")
-
-    except Exception as e:
-        logger.error(f"Error resending email: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

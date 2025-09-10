@@ -6,6 +6,8 @@ import string
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Optional, Dict, Any
+from functools import wraps
+import warnings
 
 import redis
 from alibabacloud_credentials.client import Client as CredentialClient
@@ -24,6 +26,15 @@ from src.fengwen2.astrology_views import AstrologyResultsView
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+
+def deprecated(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        warnings.warn(f"{func.__name__} is deprecated",
+                     DeprecationWarning, stacklevel=2)
+        return func(*args, **kwargs)
+    return wrapper
 
 
 def get_redis_client():
@@ -311,84 +322,9 @@ class EmailService:
         return self.redis.get(f"{self._VCODE_PREFIX}{email}")
 
     @staticmethod
-    def _generate_astrology_html_email(template_data: Dict[str, Any]) -> str:
-        """Generate HTML email content for astrology results."""
-        # This is a simplified version - you should use a proper templating engine
-        # or load from an HTML template file
-        html_template = """
-        <!DOCTYPE html>
-        <html lang="zh-CN">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>您的星座运势分析结果</title>
-            <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; }
-                .content { background: white; padding: 30px; border: 1px solid #e2e8f0; }
-                .section { margin-bottom: 25px; }
-                .section-title { color: #2d3748; font-size: 18px; font-weight: bold; margin-bottom: 10px; }
-                .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-                .info-item { padding: 8px; background: #f7fafc; border-radius: 5px; }
-                .score { display: inline-block; padding: 3px 8px; background: #edf2f7; border-radius: 3px; }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1>星座运势分析报告</h1>
-                    <p>您的个人专属分析已生成</p>
-                </div>
-                <div class="content">
-                    <div class="section">
-                        <div class="section-title">基本信息</div>
-                        <div class="info-grid">
-                            <div class="info-item"><strong>姓名：</strong>{name}</div>
-                            <div class="info-item"><strong>生肖：</strong>{sx}</div>
-                            <div class="info-item"><strong>星座：</strong>{xz}</div>
-                            <div class="info-item"><strong>八字：</strong>{bazi}</div>
-                        </div>
-                    </div>
-
-                    <div class="section">
-                        <div class="section-title">五行分析</div>
-                        <p>{wuxing_desc}</p>
-                        <div style="margin-top: 10px;">
-                            <span class="score">金: {jin_score}</span>
-                            <span class="score">木: {mu_score}</span>
-                            <span class="score">水: {shui_score}</span>
-                            <span class="score">火: {huo_score}</span>
-                            <span class="score">土: {tu_score}</span>
-                        </div>
-                    </div>
-
-                    <div class="section">
-                        <div class="section-title">姻缘分析</div>
-                        <p>{yinyuan_desc}</p>
-                    </div>
-
-                    <div class="section">
-                        <div class="section-title">财运分析</div>
-                        <p>{caiyun_desc}</p>
-                    </div>
-
-                    <div class="section">
-                        <div class="section-title">运势指引</div>
-                        <p>{yunshi_desc}</p>
-                    </div>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-
-        # Format the template with data
-        return html_template.format(**template_data)
-
-    @staticmethod
+    @deprecated
     def _convert_full_result_to_template_data(full_result: Dict[str, Any]) -> Dict[str, str]:
-        """Convert full result JSON to template data."""
+        """Convert full result JSON to template data. Use for Tencent Template of ID 146629, Now it is deprecated."""
         results = AstrologyResultsView.model_validate(full_result)
         bazi_data = results.bazi.data
         liudao_data = results.liudao.data
@@ -454,15 +390,15 @@ class EmailService:
 
         return {k: str(v) for k, v in template_data.items()}
 
-    async def send_astrology_result_email(self, email: str, astrology_result: str) -> bool:
+    async def send_astrology_result_email(
+            self,
+            email: str,
+            astrology_result: str,
+            subject: str,
+            content_type: str = "html"
+    ) -> bool:
         """Send astrology result email using Alibaba Cloud (HTML-based)."""
         try:
-            full_result = json.loads(astrology_result)
-            template_data = self._convert_full_result_to_template_data(full_result)
-
-            # Generate HTML content
-            html_content = self._generate_astrology_html_email(template_data)
-
             provider = self.get_provider(self.result_provider)
 
             self._log_email_action(
@@ -474,10 +410,9 @@ class EmailService:
             # Use Alibaba's single send email for results
             success = await provider.send_email(
                 to_email=email,
-                subject="您的星座运势分析结果",
-                content=html_content,
-                content_type="html",
-                from_email="results@mail.fengculture.com"
+                subject=subject,
+                content=astrology_result,
+                content_type=content_type,
             )
 
             if success:
