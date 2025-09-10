@@ -1,0 +1,277 @@
+<mjml>
+    <mj-head>
+        <mj-title>Metal Element Astrology Report</mj-title>
+        <mj-preview>Your Astrology Report is Ready</mj-preview>
+        <mj-font name="Playfair Display" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;900&display=swap" />
+        <mj-font name="Crimson Text" href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400;1,600&display=swap" />
+        <mj-font name="Lora" href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" />
+        <mj-font name="Dancing Script" href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap" />
+        <mj-font name="Great Vibes" href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" />
+        <mj-attributes>
+            <mj-all font-family="'Lora', 'Crimson Text', 'Times New Roman', serif"></mj-all>
+            <mj-text color="#805A0A" font-size="16px" line-height="1.7"></mj-text>
+            <mj-section background-color="#FFFFF0" padding="20px 0"></mj-section>
+        </mj-attributes>
+        <mj-style>
+            .elegant-title {
+                font-family: 'Great Vibes', 'Dancing Script', cursive !important;
+                font-weight: 400 !important;
+                letter-spacing: 1px !important;
+                text-shadow: 2px 2px 4px rgba(184, 134, 11, 0.15) !important;
+                font-style: normal !important;
+            }
+            .section-header {
+                font-family: 'Playfair Display', 'Times New Roman', serif !important;
+                font-weight: 600 !important;
+                letter-spacing: 0.5px !important;
+                text-transform: none !important;
+                font-style: normal !important;
+            }
+            .content-text {
+                font-family: 'Lora', 'Crimson Text', 'Georgia', serif !important;
+                font-weight: 400 !important;
+                line-height: 1.75 !important;
+                letter-spacing: 0.3px !important;
+                font-style: normal !important;
+                text-align: justify !important;
+                text-justify: inter-word !important;
+                word-wrap: break-word !important;
+                hyphens: auto !important;
+                -webkit-hyphens: auto !important;
+                -moz-hyphens: auto !important;
+                -ms-hyphens: auto !important;
+            }
+            .info-label {
+                font-family: 'Playfair Display', serif !important;
+                font-weight: 500 !important;
+                letter-spacing: 0.5px !important;
+                font-style: normal !important;
+            }
+            .table-text {
+                font-family: 'Lora', 'Crimson Text', serif !important;
+                font-weight: 400 !important;
+                letter-spacing: 0.3px !important;
+            }
+        </mj-style>
+    </mj-head>
+    <mj-body background-color="#FFFFF0" width="700px">
+        <!-- Hero Image -->
+        <mj-section padding="0">
+            <mj-column>
+                <mj-image src="./metal_product_hero.png" alt="Astrology Product Image" padding="0"/>
+            </mj-column>
+        </mj-section>
+        <!-- Header -->
+        <mj-section>
+            <mj-column>
+                <mj-text align="center" font-size="32px" color="#B8860B" css-class="elegant-title" line-height="1.2">Test Report</mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Basic Information Card -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header"><img
+                        src="https://report.fengculture.com/images/icons/leading_label_basic_information.png"
+                        width="24" height="24" style="vertical-align: middle; margin-right: 8px;"/>
+                    Basic Information
+                </mj-text>
+                <mj-text css-class="content-text"><span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Name:</span> {{ bazi.data.base_info.name }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Year Pillar Na Yin:</span> {{ bazi.data.bazi_info.na_yin }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Gregorian Birth Date:</span> {{ bazi.data.base_info.gongli }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Lunar Birth Date:</span> {{ bazi.data.base_info.nongli }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Zodiac & Constellation:</span> {{ bazi.data.sx }} / {{ bazi.data.xz }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Four Pillars (Ba Zi):</span> {{ bazi.data.bazi_info.bazi }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Ba Zi Structure:</span> {{ bazi.data.base_info.zhengge }}
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Personality Analysis Card -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header"><img
+                        src="https://report.fengculture.com/images/icons/leading_label_personality_analysis.png"
+                        width="24" height="24" style="vertical-align: middle; margin-right: 8px;"/>
+                    Personality Analysis
+                </mj-text>
+                <mj-text color="#805A0A" css-class="content-text" align="justify">{{ bazi.data.wuxing.detail_description }}</mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Marriage Analysis Card -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header"><img
+                        src="https://report.fengculture.com/images/icons/leading_label_marriage_analysis.png"
+                        width="24" height="24" style="vertical-align: middle; margin-right: 8px;"/>
+                    Marriage Analysis
+                </mj-text>
+                <mj-text color="#805A0A" css-class="content-text" align="justify">{{ bazi.data.yinyuan.sanshishu_yinyuan }}</mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Fortune Analysis Card -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header"><img
+                        src="https://report.fengculture.com/images/icons/leading_label_fortune_analysis.png"
+                        width="24" height="24" style="vertical-align: middle; margin-right: 8px;"/>
+                    Fortune Analysis
+                </mj-text>
+                <mj-text color="#805A0A" css-class="content-text" align="justify">{{ bazi.data.caiyun.sanshishu_caiyun.detail_desc }}</mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Life Information Card -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header"><img
+                        src="https://report.fengculture.com/images/icons/leading_label_life_information.png"
+                        width="24" height="24" style="vertical-align: middle; margin-right: 8px;"/>
+                    Life Information
+                </mj-text>
+                <mj-text color="#805A0A" css-class="content-text" align="justify">{{ liudao.data.liudao_info.now_info.liudao_detail_desc }}</mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Past Life Information Card -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header"><img
+                        src="https://report.fengculture.com/images/icons/leading_label_life_information.png"
+                        width="24" height="24" style="vertical-align: middle; margin-right: 8px;"/>
+                    Past Life Information
+                </mj-text>
+                <mj-text color="#805A0A" css-class="content-text" align="justify">{{ liudao.data.liudao_info.past_info.liudao_detail_desc }}</mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Future Life Information Card -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header"><img
+                        src="https://report.fengculture.com/images/icons/leading_label_life_information.png"
+                        width="24" height="24" style="vertical-align: middle; margin-right: 8px;"/>
+                    Future Life Information
+                </mj-text>
+                <mj-text color="#805A0A" css-class="content-text" align="justify">{{ liudao.data.liudao_info.future_info.liudao_detail_desc }}</mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- True Love Profile Card -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header"><img
+                        src="https://report.fengculture.com/images/icons/leading_label_true_love_profile.png"
+                        width="24" height="24" style="vertical-align: middle; margin-right: 8px;"/>
+                    True Love Profile
+                </mj-text>
+                <mj-text color="#805A0A" css-class="content-text">
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Face Shape:</span> {{ zhengyuan.data.zhengyuan_info.huaxiang.face_shape }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Eyebrow Shape:</span> {{ zhengyuan.data.zhengyuan_info.huaxiang.eyebrow_shape }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Eye Shape:</span> {{ zhengyuan.data.zhengyuan_info.huaxiang.eye_shape }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Mouth Shape:</span> {{ zhengyuan.data.zhengyuan_info.huaxiang.mouth_shape }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Nose Shape:</span> {{ zhengyuan.data.zhengyuan_info.huaxiang.nose_shape }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Body Shape:</span> {{ zhengyuan.data.zhengyuan_info.huaxiang.body_shape }}
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- True Love Traits Card -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header"><img
+                        src="https://report.fengculture.com/images/icons/leading_label_true_love_traits.png"
+                        width="24" height="24" style="vertical-align: middle; margin-right: 8px;"/>
+                    True Love Traits
+                </mj-text>
+                <mj-text color="#805A0A" css-class="content-text">
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Romantic Personality:</span> {{ zhengyuan.data.zhengyuan_info.tezhi.romantic_personality }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Family Background:</span> {{ zhengyuan.data.zhengyuan_info.tezhi.family_background }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Career Wealth:</span> {{ zhengyuan.data.zhengyuan_info.tezhi.career_wealth }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Marital Happiness:</span> {{ zhengyuan.data.zhengyuan_info.tezhi.marital_happiness }}
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- True Love Guidance Card -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header"><img
+                        src="https://report.fengculture.com/images/icons/leading_label_true_love_guidance.png"
+                        width="24" height="24" style="vertical-align: middle; margin-right: 8px;"/>
+                    True Love Guidance
+                </mj-text>
+                <mj-text color="#805A0A" css-class="content-text">
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Love Location:</span> {{ zhengyuan.data.zhengyuan_info.zhiyin.love_location }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Meeting Method:</span> {{ zhengyuan.data.zhengyuan_info.zhiyin.meeting_method }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Interaction Model:</span> {{ zhengyuan.data.zhengyuan_info.zhiyin.interaction_model }}<br/><br/>
+                    <span class="info-label" style="color: #ffffff; background-color: #B8860B; font-weight: bold; font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-right: 8px;">Love Advice:</span> {{ zhengyuan.data.zhengyuan_info.zhiyin.love_advice }}
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- True Love Fortune Card -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header"><img
+                        src="https://report.fengculture.com/images/icons/leading_label_true_love_fortune.png"
+                        width="24" height="24" style="vertical-align: middle; margin-right: 8px;"/>
+                    True Love Fortune
+                </mj-text>
+                <mj-text color="#805A0A" css-class="content-text" align="justify">{{ zhengyuan.data.zhengyuan_info.yunshi }}</mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Elements Analysis Section -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header">Favorable Elements Analysis</mj-text>
+                <mj-table>
+                    <tr style="background-color: #FFFDE7;">
+                        <td class="table-text" style="padding: 10px; text-align: center; color: #B8860B; font-weight: 500;">Element</td>
+                        <td class="table-text" style="padding: 10px; text-align: center; color: #B8860B; font-weight: 500;">Energy</td>
+                    </tr>
+                    <tr>
+                        <td class="table-text" style="padding: 8px; text-align: center;">金 (Metal)</td>
+                        <td class="table-text" style="padding: 8px; text-align: center;">{{ bazi.data.xiyongshen.jin_score | int }}</td>
+                    </tr>
+                    <tr style="background-color: #FFFFF0;">
+                        <td class="table-text" style="padding: 8px; text-align: center;">木 (Wood)</td>
+                        <td class="table-text" style="padding: 8px; text-align: center;">{{ bazi.data.xiyongshen.mu_score | int }}</td>
+                    </tr>
+                    <tr>
+                        <td class="table-text" style="padding: 8px; text-align: center;">水 (Water)</td>
+                        <td class="table-text" style="padding: 8px; text-align: center;">{{ bazi.data.xiyongshen.shui_score | int }}</td>
+                    </tr>
+                    <tr style="background-color: #FFFFF0;">
+                        <td class="table-text" style="padding: 8px; text-align: center;">火 (Fire)</td>
+                        <td class="table-text" style="padding: 8px; text-align: center;">{{ bazi.data.xiyongshen.huo_score | int }}</td>
+                    </tr>
+                    <tr>
+                        <td class="table-text" style="padding: 8px; text-align: center;">土 (Earth)</td>
+                        <td class="table-text" style="padding: 8px; text-align: center;">{{ bazi.data.xiyongshen.tu_score | int }}</td>
+                    </tr>
+                </mj-table>
+            </mj-column>
+        </mj-section>
+
+        <!-- Reading Advice -->
+        <mj-section background-color="#FFFDE7" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text color="#B8860B" font-size="18px" css-class="section-header">Reading Advice</mj-text>
+                <mj-text css-class="content-text" align="justify">If the results are favorable, that's something to celebrate. If not, don't be discouraged – your destiny is still in your own hands. The purpose of fortune-telling is to help you avoid misfortune and follow the path of least resistance.</mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Footer -->
+        <mj-section padding="30px 0">
+            <mj-column>
+                <mj-text align="center" color="#999999" font-size="12px">© 2024 Universal Future. All rights reserved.
+                </mj-text>
+            </mj-column>
+        </mj-section>
+    </mj-body>
+
+</mjml>
