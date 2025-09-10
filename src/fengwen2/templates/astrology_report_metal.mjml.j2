@@ -58,7 +58,7 @@
         <!-- Hero Image -->
         <mj-section padding="0">
             <mj-column>
-                <mj-image src="./metal_product_hero.png" alt="Astrology Product Image" padding="0"/>
+                <mj-image src="https://report.fengculture.com/images/products/metal_product_hero.png" alt="Astrology Product Image" padding="0" href="https://fengculture.com/collections/metal-element-1"/>
             </mj-column>
         </mj-section>
         <!-- Header -->
@@ -221,6 +221,45 @@
                     True Love Fortune
                 </mj-text>
                 <mj-text color="#805A0A" css-class="content-text" align="justify">{{ zhengyuan.data.zhengyuan_info.yunshi }}</mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Favorable and Clashing Elements -->
+        <mj-section>
+            <mj-column width="48%" background-color="#ffffff" border-radius="12px" padding="15px">
+                <mj-text css-class="section-header" align="center" color="#B8860B" font-size="16px">Favorable Element</mj-text>
+                <mj-text align="center" css-class="content-text">
+                    {{ bazi.data.xiyongshen.tonglei }}
+                </mj-text>
+            </mj-column>
+            <mj-column width="4%">&nbsp;</mj-column>
+            <mj-column width="48%" background-color="#ffffff" border-radius="12px" padding="15px">
+                <mj-text css-class="section-header" align="center" color="#B8860B" font-size="16px">Clashing Element</mj-text>
+                <mj-text align="center" css-class="content-text">
+                    {{ bazi.data.xiyongshen.yilei }}
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Ba Zi Summary -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text css-class="section-header" color="#B8860B" font-size="18px">Ba Zi Summary</mj-text>
+                <mj-text css-class="content-text" color="#805A0A">{{ bazi.data.xiyongshen.qiangruo }}</mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Five Element Advice -->
+        <mj-section background-color="#ffffff" border-radius="12px" padding="20px">
+            <mj-column>
+                <mj-text css-class="section-header" color="#B8860B" font-size="18px">Five Element Advice</mj-text>
+                <mj-table width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td style="background-color: #fffef0; border-radius: 8px; padding: 15px; color: #805A0A; font-size: 14px; line-height: 1.6; text-align: justify;">
+                            {{ bazi.data.xiyongshen.xiyongshen_desc }}
+                        </td>
+                    </tr>
+                </mj-table>
             </mj-column>
         </mj-section>
 
