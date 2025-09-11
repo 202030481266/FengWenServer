@@ -30,6 +30,7 @@ dependencies = [
     "gunicorn>=23.0.0",
     "alibabacloud-dm20151123==1.6.2",
     "python-jose[cryptography]>=3.3.0",
+    "passlib>=1.7.4",
 ]
 
 [project.optional-dependencies]
