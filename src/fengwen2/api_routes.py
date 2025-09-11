@@ -6,7 +6,6 @@ from typing import Optional, Dict
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
-from fastapi.responses import HTMLResponse
 from fastapi_cache import FastAPICache
 from sqlalchemy.orm import Session
 
@@ -285,17 +284,6 @@ async def get_products(db: Session = Depends(get_db)):
         })
 
     return result  # Return only first 3
-
-
-@router.get("/admin/admin-page")
-async def get_admin_page(_: str = Depends(verify_admin_auth)):
-    """Serve admin management page from template"""
-    try:
-        with open("templates/admin_page.html", "r", encoding="utf-8") as f:
-            content = f.read()
-        return HTMLResponse(content)
-    except FileNotFoundError:
-        raise HTTPException(status_code=500, detail="Admin template not found")
 
 
 @router.get("/admin/translations")

@@ -3,12 +3,12 @@ import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.fengwen2.api_routes import router
+from src.fengwen2.api_routes import router, verify_admin_auth
 from src.fengwen2.cache_config import init_cache
 from src.fengwen2.database import create_tables
 from src.fengwen2.service_manager import get_service_manager
@@ -114,6 +114,17 @@ async def admin_interface():
             </html>
             """
         )
+
+
+@app.get("/admin/admin-page")
+async def get_admin_page(_: str = Depends(verify_admin_auth)):
+    """Serve admin management page from template"""
+    try:
+        with open("templates/admin_page.html", "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content)
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="Admin template not found")
 
 
 @app.get("/health")
