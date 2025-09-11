@@ -2,18 +2,19 @@ import html
 import json
 import logging
 import os
-from typing import Optional, Dict
+from datetime import datetime
+from typing import Dict, List
 from urllib.parse import urlparse
 
-from pydantic import ValidationError
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi import APIRouter, Depends, HTTPException, Request, File, UploadFile
 from fastapi_cache import FastAPICache
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from src.fengwen2.admin_models import (
     Product, TranslationPair as DBTranslationPair,
     UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate,
-    TranslationPairRequest, CreatePaymentLinkRequest, PaymentLinkResponse
+    TranslationPairRequest, CreatePaymentLinkRequest, PaymentLinkResponse, ProductUpdate
 )
 from src.fengwen2.astrology_data_mask import AstrologyDataMaskingService
 from src.fengwen2.astrology_views import AstrologyApiResponseView, AstrologyResultsView
@@ -24,9 +25,6 @@ from src.fengwen2.service_manager import get_service_manager
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-
 
 # Simple security functions
 ALLOWED_DOMAINS = [
@@ -273,6 +271,112 @@ async def get_products(db: Session = Depends(get_db)):
     return result  # Return only first 3
 
 
+@router.put("/admin/products/{product_id}")
+async def update_product(
+        product_id: int,
+        product_update: ProductUpdate,
+        db: Session = Depends(get_db)
+):
+    """更新产品信息"""
+    try:
+        product = db.query(Product).filter(Product.id == product_id).first()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        # 更新非空字段
+        if product_update.name is not None:
+            product.name = clean_text(product_update.name)
+        if product_update.image_url is not None:
+            product.image_url = clean_text(product_update.image_url)
+        if product_update.redirect_url is not None:
+            # 验证URL安全性
+            if validate_url(product_update.redirect_url):
+                product.redirect_url = product_update.redirect_url
+            else:
+                raise HTTPException(status_code=400, detail="Invalid redirect URL")
+
+        db.commit()
+        db.refresh(product)
+
+        return {
+            "id": product.id,
+            "name": product.name,
+            "image_url": product.image_url,
+            "redirect_url": product.redirect_url,
+            "message": "Product updated successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating product {product_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update product")
+
+
+@router.delete("/admin/products/{product_id}")
+async def delete_product(product_id: int, db: Session = Depends(get_db)):
+    """删除产品 - 注意：由于系统需要保持3个产品，删除后会自动创建新的空产品"""
+    try:
+        product = db.query(Product).filter(Product.id == product_id).first()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        db.delete(product)
+
+        # 确保始终有3个产品，如果不够的话就会自动创建空的产品
+        product_count = db.query(Product).count()
+        if product_count < 3:
+            new_product = Product(
+                name=f"Product {product_count + 1}",
+                image_url="https://via.placeholder.com/300x200",
+                redirect_url="#"
+            )
+            db.add(new_product)
+
+        db.commit()
+        return {"message": "Product deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting product {product_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete product")
+
+
+@router.post("/admin/products")
+async def create_product(product: ProductUpdate, db: Session = Depends(get_db)):
+    """创建新产品"""
+    try:
+        # 检查产品数量，如果大于3个的话那就要删除其中的一些
+        product_count = db.query(Product).count()
+        if product_count >= 3:
+            raise HTTPException(
+                status_code=400,
+                detail="Maximum number of products (3) reached. Please delete a product first."
+            )
+
+        new_product = Product(
+            name=clean_text(product.name or "New Product"),
+            image_url=clean_text(product.image_url or "https://via.placeholder.com/300x200"),
+            redirect_url=product.redirect_url if validate_url(product.redirect_url) else "#"
+        )
+
+        db.add(new_product)
+        db.commit()
+        db.refresh(new_product)
+
+        return {
+            "id": new_product.id,
+            "name": new_product.name,
+            "image_url": new_product.image_url,
+            "redirect_url": new_product.redirect_url
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating product: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create product")
+
+
 @router.get("/admin/translations")
 async def get_translations(db: Session = Depends(get_db)):
     """Get all translation pairs"""
@@ -311,6 +415,72 @@ async def update_translation(translation_id: int, translation: TranslationPairUp
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update translation")
+
+
+@router.delete("/admin/translations/{translation_id}")
+async def delete_translation(translation_id: int, db: Session = Depends(get_db)):
+    """删除翻译对"""
+    try:
+        translation = db.query(DBTranslationPair).filter(
+            DBTranslationPair.id == translation_id
+        ).first()
+
+        if not translation:
+            raise HTTPException(status_code=404, detail="Translation not found")
+
+        db.delete(translation)
+        db.commit()
+
+        return {"message": "Translation deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting translation {translation_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete translation")
+
+
+@router.get("/admin/translations/{translation_id}")
+async def get_translation(translation_id: int, db: Session = Depends(get_db)):
+    """获取单个翻译对详情"""
+    translation = db.query(DBTranslationPair).filter(
+        DBTranslationPair.id == translation_id
+    ).first()
+
+    if not translation:
+        raise HTTPException(status_code=404, detail="Translation not found")
+
+    return {
+        "id": translation.id,
+        "chinese_text": translation.chinese_text,
+        "english_text": translation.english_text
+    }
+
+
+@router.post("/admin/translations/batch")
+async def add_batch_translations(
+        translations: List[TranslationPairRequest],
+        db: Session = Depends(get_db)
+):
+    """批量添加翻译对"""
+    try:
+        added_translations = []
+        for translation in translations:
+            new_translation = DBTranslationPair(
+                chinese_text=clean_text(translation.chinese_text),
+                english_text=clean_text(translation.english_text)
+            )
+            db.add(new_translation)
+            added_translations.append(new_translation)
+
+        db.commit()
+
+        return {
+            "message": f"Successfully added {len(added_translations)} translations",
+            "count": len(added_translations)
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error adding batch translations: {e}")
+        raise HTTPException(status_code=500, detail="Failed to add translations")
 
 
 @router.post("/verify-email-first")
@@ -602,3 +772,113 @@ async def list_test_records(
     except Exception as e:
         logger.error(f"[TEST] Error listing records: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/admin/stats")
+async def get_admin_stats(db: Session = Depends(get_db)):
+    """获取管理后台统计信息"""
+    try:
+        product_count = db.query(Product).count()
+        translation_count = db.query(DBTranslationPair).count()
+
+        # 获取最近的更新时间
+        latest_product = db.query(Product).order_by(Product.id.desc()).first()
+        latest_translation = db.query(DBTranslationPair).order_by(
+            DBTranslationPair.id.desc()
+        ).first()
+
+        return {
+            "products": {
+                "total": product_count,
+                "required": 3,
+                "complete": product_count >= 3
+            },
+            "translations": {
+                "total": translation_count
+            },
+            "last_update": {
+                "products": latest_product.id if latest_product else None,
+                "translations": latest_translation.id if latest_translation else None
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting admin stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get statistics")
+
+
+@router.post("/admin/upload/image")
+async def upload_image(
+        file: UploadFile = File(...),
+        db: Session = Depends(get_db)
+):
+    """上传图片文件"""
+    try:
+        # 验证文件类型
+        allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
+            )
+
+        # 限制文件大小 (5MB)
+        max_size = 5 * 1024 * 1024
+        contents = await file.read()
+        if len(contents) > max_size:
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 5MB")
+
+        # 生成唯一文件名
+        import uuid
+        from pathlib import Path
+
+        file_extension = Path(file.filename).suffix
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+
+        # 确保上传目录存在
+        upload_dir = Path("static/uploads")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        # 保存文件
+        file_path = upload_dir / unique_filename
+        with open(file_path, "wb") as f:
+            f.write(contents)
+
+        # 返回文件URL
+        file_url = f"/static/uploads/{unique_filename}"
+
+        return {
+            "url": file_url,
+            "filename": unique_filename,
+            "size": len(contents)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading image: {e}")
+        raise HTTPException(status_code=500, detail="Failed to upload image")
+
+
+@router.get("/admin/export/translations")
+async def export_translations(db: Session = Depends(get_db)):
+    """导出所有翻译为JSON格式"""
+    try:
+        translations = db.query(DBTranslationPair).all()
+
+        export_data = {
+            "version": "1.0.0",
+            "export_date": datetime.now().isoformat(),
+            "total": len(translations),
+            "translations": [
+                {
+                    "id": t.id,
+                    "chinese_text": t.chinese_text,
+                    "english_text": t.english_text
+                }
+                for t in translations
+            ]
+        }
+
+        return export_data
+    except Exception as e:
+        logger.error(f"Error exporting translations: {e}")
+        raise HTTPException(status_code=500, detail="Failed to export translations")
