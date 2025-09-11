@@ -188,7 +188,7 @@ async def shopify_webhook(
                     return {"status": "already_processed_duplicate_webhook"}
 
                 record.is_purchased = True
-                record.shopify_order_id = new_order_id # update the order_id
+                record.shopify_order_id = new_order_id  # update the order_id
 
                 try:
                     db.commit()

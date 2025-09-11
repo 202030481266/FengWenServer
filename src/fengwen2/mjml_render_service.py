@@ -7,46 +7,52 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader
 
-from src.fengwen2.astrology_views import AstrologyResultsView # noqa: F401
+from src.fengwen2.astrology_views import AstrologyResultsView  # noqa: F401
 
 logger = logging.getLogger(__name__)
+
+load_dotenv()
 
 
 def get_mjml_executable_path() -> str | None:
     home = Path.home()
-    if sys.platform == "win32":
-        logger.info("Detect Windows System, use default path")
-        path = home / "AppData" / "Roaming" / "npm" / "mjml.cmd"
-        if not path.exists():
-            logger.warning(f"Can't find mjml.cmd at {path}")
-            logger.info("Try to find mjml.cmd in system paths")
-            mjml_pth = shutil.which("mjml.cmd")
-            if mjml_pth:
-                path = Path(mjml_pth)
-    elif sys.platform == "linux":
-        logger.info("Detect Linux System, use default path")
-        logger.info("Try to find mjml.cmd in system paths")
-        mjml_pth = shutil.which("mjml")
-        if mjml_pth:
-            logger.info("Find mjml in system paths")
-            path = Path(mjml_pth)
-        else:
-            try:
-                node_version = subprocess.run(['node', '-v'], check=True, capture_output=True, text=True)
-                node_version = node_version.stdout.strip()
-                logger.info(f"Node.js's version: {node_version}")
-                path = home / ".nvm" / 'versions' / 'node' / node_version / 'bin' / 'mjml'
-            except FileNotFoundError:
-                logger.error("Can't find `node` command, may be you need to install the node.js", exc_info=True)
-                return None
-            except subprocess.CalledProcessError:
-                logger.error("Can't run `node` command, please check your node.js", exc_info=True)
-                return None
+    if os.getenv("MJML_EXECUTABLE_PATH", None) is not None:  # 优先使用环境变量
+        path = os.getenv("MJML_EXECUTABLE_PATH")
     else:
-        logger.error(f"Unsupported platform: {sys.platform}")
-        return None
+        if sys.platform == "win32":
+            logger.info("Detect Windows System, use default path")
+            path = home / "AppData" / "Roaming" / "npm" / "mjml.cmd"
+            if not path.exists():
+                logger.warning(f"Can't find mjml.cmd at {path}")
+                logger.info("Try to find mjml.cmd in system paths")
+                mjml_pth = shutil.which("mjml.cmd")
+                if mjml_pth:
+                    path = Path(mjml_pth)
+        elif sys.platform == "linux":
+            logger.info("Detect Linux System, use default path")
+            logger.info("Try to find mjml.cmd in system paths")
+            mjml_pth = shutil.which("mjml")
+            if mjml_pth:
+                logger.info("Find mjml in system paths")
+                path = Path(mjml_pth)
+            else:
+                try:
+                    node_version = subprocess.run(['node', '-v'], check=True, capture_output=True, text=True)
+                    node_version = node_version.stdout.strip()
+                    logger.info(f"Node.js's version: {node_version}")
+                    path = home / ".nvm" / 'versions' / 'node' / node_version / 'bin' / 'mjml'
+                except FileNotFoundError:
+                    logger.error("Can't find `node` command, may be you need to install the node.js", exc_info=True)
+                    return None
+                except subprocess.CalledProcessError:
+                    logger.error("Can't run `node` command, please check your node.js", exc_info=True)
+                    return None
+        else:
+            logger.error(f"Unsupported platform: {sys.platform}")
+            return None
     if path and path.exists():
         logger.info(f"Found mjml executable: {path}")
         return str(path)

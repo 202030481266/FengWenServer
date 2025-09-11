@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
         logger.info("Creating database tables...")
         create_tables()
         logger.info("Database tables created successfully")
-        
+
         await init_cache()
         await service_manager.startup()
         logger.info("All services started successfully")

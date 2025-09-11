@@ -3,11 +3,11 @@ import logging
 import os
 import random
 import string
+import warnings
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Optional, Dict, Any
 from functools import wraps
-import warnings
+from typing import Optional, Dict, Any
 
 import redis
 from alibabacloud_credentials.client import Client as CredentialClient
@@ -32,8 +32,9 @@ def deprecated(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         warnings.warn(f"{func.__name__} is deprecated",
-                     DeprecationWarning, stacklevel=2)
+                      DeprecationWarning, stacklevel=2)
         return func(*args, **kwargs)
+
     return wrapper
 
 
