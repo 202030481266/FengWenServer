@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi_cache import FastAPICache
 from sqlalchemy.orm import Session
 
-from src.fengwen2.admin_auth import get_current_admin_user
 from src.fengwen2.admin_models import (
     Product, TranslationPair as DBTranslationPair,
     UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate,
@@ -27,12 +26,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# Admin authentication dependency
-def get_admin_user(admin: str = Depends(get_current_admin_user)):
-    """Dependency to protect admin routes"""
-    if not admin:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return admin
 
 
 # Simple security functions
@@ -281,15 +274,14 @@ async def get_products(db: Session = Depends(get_db)):
 
 
 @router.get("/admin/translations")
-async def get_translations(db: Session = Depends(get_db), _: str = Depends(get_admin_user)):
+async def get_translations(db: Session = Depends(get_db)):
     """Get all translation pairs"""
     translations = db.query(DBTranslationPair).all()
     return translations
 
 
 @router.post("/admin/translations")
-async def add_translation(translation: TranslationPairRequest, db: Session = Depends(get_db),
-                          _: str = Depends(get_admin_user)):
+async def add_translation(translation: TranslationPairRequest, db: Session = Depends(get_db)):
     """Add translation pair"""
     new_translation = DBTranslationPair(
         chinese_text=clean_text(translation.chinese_text),
@@ -305,8 +297,7 @@ async def add_translation(translation: TranslationPairRequest, db: Session = Dep
 
 
 @router.put("/admin/translations/{translation_id}")
-async def update_translation(translation_id: int, translation: TranslationPairUpdate, db: Session = Depends(get_db),
-                             _: str = Depends(get_admin_user)):
+async def update_translation(translation_id: int, translation: TranslationPairUpdate, db: Session = Depends(get_db)):
     """Update translation pair"""
     existing = db.query(DBTranslationPair).filter(DBTranslationPair.id == translation_id).first()
     if not existing:
@@ -416,10 +407,7 @@ async def create_payment_link(
 
 
 @router.post("/admin/cache/invalidate")
-async def invalidate_cache(
-        request: Dict,
-        _: str = Depends(get_admin_user)
-):
+async def invalidate_cache(request: Dict):
     """Invalidate cache for a specific email or all cache"""
     email = request.get("email")
     clear_all = request.get("clear_all", False)
@@ -439,7 +427,7 @@ async def invalidate_cache(
 
 
 @router.get("/admin/cache/stats")
-async def get_cache_stats(_: str = Depends(get_admin_user)):
+async def get_cache_stats():
     """Get Redis cache statistics"""
     try:
         backend = FastAPICache.get_backend()
