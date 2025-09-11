@@ -24,7 +24,12 @@
 </head>
 <body>
     <div class="container">
-        <h1>Admin Management Panel</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1>Admin Management Panel</h1>
+            <a href="/admin/logout" style="text-decoration: none;">
+                <button style="background: #dc3545; padding: 8px 16px;">Logout</button>
+            </a>
+        </div>
         
         <!-- Products Section -->
         <div class="section">
@@ -47,13 +52,8 @@
     </div>
 
     <script>
-        // Get token from URL parameter or use default
-        const urlParams = new URLSearchParams(window.location.search);
-        const ADMIN_TOKEN = urlParams.get('token') || "admin123";
-        
-        // Add authentication to all API calls
+        // No longer need to handle tokens in JS, browser handles HttpOnly cookie
         const authHeaders = {
-            "Authorization": "Bearer " + ADMIN_TOKEN,
             "Content-Type": "application/json"
         };
         

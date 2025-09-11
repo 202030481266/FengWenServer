@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi_cache import FastAPICache
 from sqlalchemy.orm import Session
 
+from src.fengwen2.admin_auth import get_current_admin_user
 from src.fengwen2.admin_models import (
     Product, TranslationPair as DBTranslationPair,
     UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate,
@@ -24,38 +25,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Admin authentication
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
-
-def verify_admin_auth(authorization: Optional[str] = Header(None)):
-    """Simple admin authentication"""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-    try:
-        scheme, credentials = authorization.split()
-        if scheme.lower() != "bearer" or credentials != ADMIN_PASSWORD:
-            raise HTTPException(status_code=401, detail="Invalid authentication")
-    except ValueError:
-        raise HTTPException(status_code=401, detail="Invalid authentication format")
-
-
-def verify_admin_auth_with_redirect(authorization: Optional[str] = Header(None)):
-    """Admin authentication with redirect for web pages"""
-    if not authorization:
-        from fastapi.responses import RedirectResponse
-        return RedirectResponse(url="/admin/?redirected=true", status_code=302)
-
-    try:
-        scheme, credentials = authorization.split()
-        if scheme.lower() != "bearer" or credentials != ADMIN_PASSWORD:
-            from fastapi.responses import RedirectResponse
-            return RedirectResponse(url="/admin/?redirected=true", status_code=302)
-        return None  # Authentication successful
-    except ValueError:
-        from fastapi.responses import RedirectResponse
-        return RedirectResponse(url="/admin/?redirected=true", status_code=302)
+# Admin authentication dependency
+def get_admin_user(admin: str = Depends(get_current_admin_user)):
+    """Dependency to protect admin routes"""
+    if not admin:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return admin
 
 
 # Simple security functions
@@ -304,7 +280,7 @@ async def get_products(db: Session = Depends(get_db)):
 
 
 @router.get("/admin/translations")
-async def get_translations(db: Session = Depends(get_db), _: str = Depends(verify_admin_auth)):
+async def get_translations(db: Session = Depends(get_db), _: str = Depends(get_admin_user)):
     """Get all translation pairs"""
     translations = db.query(DBTranslationPair).all()
     return translations
@@ -312,7 +288,7 @@ async def get_translations(db: Session = Depends(get_db), _: str = Depends(verif
 
 @router.post("/admin/translations")
 async def add_translation(translation: TranslationPairRequest, db: Session = Depends(get_db),
-                          _: str = Depends(verify_admin_auth)):
+                          _: str = Depends(get_admin_user)):
     """Add translation pair"""
     new_translation = DBTranslationPair(
         chinese_text=clean_text(translation.chinese_text),
@@ -329,7 +305,7 @@ async def add_translation(translation: TranslationPairRequest, db: Session = Dep
 
 @router.put("/admin/translations/{translation_id}")
 async def update_translation(translation_id: int, translation: TranslationPairUpdate, db: Session = Depends(get_db),
-                             _: str = Depends(verify_admin_auth)):
+                             _: str = Depends(get_admin_user)):
     """Update translation pair"""
     existing = db.query(DBTranslationPair).filter(DBTranslationPair.id == translation_id).first()
     if not existing:
@@ -441,7 +417,7 @@ async def create_payment_link(
 @router.post("/admin/cache/invalidate")
 async def invalidate_cache(
         request: Dict,
-        _: str = Depends(verify_admin_auth)
+        _: str = Depends(get_admin_user)
 ):
     """Invalidate cache for a specific email or all cache"""
     email = request.get("email")
@@ -462,7 +438,7 @@ async def invalidate_cache(
 
 
 @router.get("/admin/cache/stats")
-async def get_cache_stats(_: str = Depends(verify_admin_auth)):
+async def get_cache_stats(_: str = Depends(get_admin_user)):
     """Get Redis cache statistics"""
     try:
         backend = FastAPICache.get_backend()
