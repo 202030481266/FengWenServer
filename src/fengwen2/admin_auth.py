@@ -1,18 +1,17 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-# --- Configuration ---
-SECRET_KEY = os.getenv("SECRET_KEY", "a_very_secret_key_that_should_be_in_env")
+SECRET_KEY = os.getenv("TOKEN_SECRET_KEY", "a_very_secret_key_that_should_be_in_env")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
-# Admin credentials (replace with a more secure storage in production)
+# read admin_username and user_password
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
@@ -23,7 +22,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 ADMIN_PASSWORD_HASH = pwd_context.hash(ADMIN_PASSWORD)
 
 
-# --- Password Utilities ---
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
@@ -32,25 +30,21 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-# --- Token Utilities ---
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 
-# --- Authentication Dependency ---
 def get_current_admin_user(request: Request):
     token = request.cookies.get("access_token")
-
     if not token:
-        return None  # No token found
-
+        return None
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
@@ -58,5 +52,4 @@ def get_current_admin_user(request: Request):
             return None
     except JWTError:
         return None
-
-    return username  # Return username if token is valid
+    return username
