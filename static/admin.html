@@ -452,8 +452,13 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎯 后台管理系统</h1>
-            <p>管理产品展示和翻译内容</p>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1>🎯 后台管理系统</h1>
+                    <p>管理产品展示和翻译内容</p>
+                </div>
+                <button onclick="logout()" style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-size: 14px; transition: background 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">登出</button>
+            </div>
         </div>
 
         <div class="alert alert-success" id="successAlert"></div>
@@ -556,7 +561,7 @@
 
     <script>
         // API 配置
-        const API_BASE = 'http://localhost:8000/api';
+        const API_BASE = '/api';
         let currentEditingTranslationId = null;
         let products = [];
         let translations = [];
@@ -1223,6 +1228,13 @@
             showAlert('网络连接已恢复');
             refreshAllData();
         });
+
+        // 登出函数
+        function logout() {
+            if (confirm('确定要登出吗？')) {
+                window.location.href = '/admin/logout';
+            }
+        }
 
         // 初始化
         initializeApp();
