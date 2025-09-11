@@ -41,6 +41,23 @@ def verify_admin_auth(authorization: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail="Invalid authentication format")
 
 
+def verify_admin_auth_with_redirect(authorization: Optional[str] = Header(None)):
+    """Admin authentication with redirect for web pages"""
+    if not authorization:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/admin/?redirected=true", status_code=302)
+
+    try:
+        scheme, credentials = authorization.split()
+        if scheme.lower() != "bearer" or credentials != ADMIN_PASSWORD:
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url="/admin/?redirected=true", status_code=302)
+        return None  # Authentication successful
+    except ValueError:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/admin/?redirected=true", status_code=302)
+
+
 # Simple security functions
 ALLOWED_DOMAINS = [
     "crystal-divination.com", "tarot-reading.com", "fengshui-guide.com",

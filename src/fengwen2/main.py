@@ -3,12 +3,13 @@ import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Header
+from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.fengwen2.api_routes import router, verify_admin_auth
+from src.fengwen2.api_routes import router, verify_admin_auth_with_redirect
 from src.fengwen2.cache_config import init_cache
 from src.fengwen2.database import create_tables
 from src.fengwen2.service_manager import get_service_manager
@@ -117,8 +118,61 @@ async def admin_interface():
 
 
 @app.get("/admin/admin-page")
-async def get_admin_page(_: str = Depends(verify_admin_auth)):
+async def get_admin_page(authorization: Optional[str] = Header(None)):
     """Serve admin management page from template"""
+    from src.fengwen2.api_routes import ADMIN_PASSWORD
+    
+    # Check authentication
+    is_authenticated = False
+    if authorization:
+        try:
+            scheme, credentials = authorization.split()
+            if scheme.lower() == "bearer" and credentials == ADMIN_PASSWORD:
+                is_authenticated = True
+        except ValueError:
+            pass
+    
+    if not is_authenticated:
+        # Return a page that redirects to login with a message
+        return HTMLResponse(content=f"""
+        <!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>需要登录</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
+                .container {{ max-width: 400px; margin: 100px auto; background: white; padding: 30px; border-radius: 8px; text-align: center; }}
+                .message {{ color: #666; margin-bottom: 20px; }}
+                .button {{ background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; }}
+                .button:hover {{ background: #0056b3; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2>需要管理员登录</h2>
+                <p class="message">您需要先登录才能访问管理页面</p>
+                <a href="/admin/?redirected=true" class="button">前往登录</a>
+                <p><small>或者 <span id="countdown">3</span> 秒后自动跳转...</small></p>
+            </div>
+            <script>
+                let countdown = 3;
+                const countdownElement = document.getElementById('countdown');
+                const timer = setInterval(() => {{
+                    countdown--;
+                    countdownElement.textContent = countdown;
+                    if (countdown <= 0) {{
+                        clearInterval(timer);
+                        window.location.href = '/admin/?redirected=true';
+                    }}
+                }}, 1000);
+            </script>
+        </body>
+        </html>
+        """)
+    
+    # User is authenticated, serve the admin page
     try:
         with open("templates/admin_page.html", "r", encoding="utf-8") as f:
             content = f.read()

@@ -72,6 +72,16 @@
             const password = document.getElementById('admin-password').value;
             if (password === ADMIN_TOKEN) {
                 isAuthenticated = true;
+                
+                // Check if user was redirected here and should go to admin-page
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('redirected') === 'true') {
+                    // Store token in sessionStorage for the redirect
+                    sessionStorage.setItem('adminToken', ADMIN_TOKEN);
+                    window.location.href = '/admin/admin-page';
+                    return;
+                }
+                
                 document.getElementById('login-form').style.display = 'none';
                 document.getElementById('admin-panel').style.display = 'block';
                 loadProducts();
@@ -93,6 +103,13 @@
         window.onload = function() {
             // Check if already authenticated (could use localStorage in production)
             // For now, always show login form
+            
+            // Check if there's a message in the URL (for redirected users)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('redirected') === 'true') {
+                document.getElementById('login-error').innerHTML = 
+                    '<div style="color: orange;">您需要先登录才能访问管理页面</div>';
+            }
         };
 
         async function loadProducts() {
