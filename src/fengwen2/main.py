@@ -1,15 +1,16 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import timedelta
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.fengwen2.admin_auth import get_current_admin_user, create_access_token, verify_password, ADMIN_USERNAME, \
-    ADMIN_PASSWORD_HASH
+    ADMIN_PASSWORD_HASH, ACCESS_TOKEN_EXPIRE_MINUTES
 from src.fengwen2.api_routes import router
 from src.fengwen2.cache_config import init_cache
 from src.fengwen2.database import create_tables
@@ -108,14 +109,20 @@ async def health():
 
 
 # Admin routes
-@app.get("/admin/login")
-async def admin_login_page():
-    """管理员登录页面 - 重定向到静态文件"""
+@app.get("/admin/login", response_class=HTMLResponse)
+async def admin_login_page(request: Request):
+    """
+    管理员登录页面。
+    """
+    current_user = get_current_admin_user(request)
+    if current_user:
+        return RedirectResponse(url="/admin", status_code=302)
+
     login_html_path = os.path.join("static", "login.html")
     if not os.path.exists(login_html_path):
         raise HTTPException(status_code=404, detail="登录页面文件未找到")
 
-    return FileResponse(login_html_path, media_type="text/html")
+    return FileResponse(login_html_path)
 
 
 @app.post("/admin/login")
@@ -132,22 +139,26 @@ async def admin_login(request: Request):
         if username != ADMIN_USERNAME or not verify_password(password, ADMIN_PASSWORD_HASH):
             raise HTTPException(status_code=401, detail="用户名或密码错误")
 
-        # 创建访问令牌
-        access_token = create_access_token(data={"sub": username})
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": username}, expires_delta=access_token_expires
+        )
 
-        # 创建响应并设置cookie
-        response = RedirectResponse(url="/admin", status_code=302)
+        # 使用 JSONResponse 更符合前后端分离的实践
+        response = JSONResponse(content={"message": "Login successful"})
         response.set_cookie(
             key="access_token",
             value=access_token,
             httponly=True,
-            secure=True,
+            max_age=int(access_token_expires.total_seconds()),
             samesite="lax",
-            max_age=60 * 60 * 24  # 24小时
+            path="/"
+            # secure=True, # 仅在生产环境(HTTPS)下使用
         )
-
         return response
 
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         logger.error(f"登录错误: {e}")
         raise HTTPException(status_code=500, detail="服务器内部错误")
@@ -157,7 +168,7 @@ async def admin_login(request: Request):
 async def admin_logout():
     """管理员登出"""
     response = RedirectResponse(url="/admin/login", status_code=302)
-    response.delete_cookie(key="access_token")
+    response.delete_cookie(key="access_token", path="/")
     return response
 
 
@@ -172,10 +183,7 @@ async def admin_dashboard(request: Request):
     if not os.path.exists(admin_html_path):
         raise HTTPException(status_code=404, detail="管理界面文件未找到")
 
-    with open(admin_html_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    return HTMLResponse(content=content)
+    return FileResponse(admin_html_path)
 
 
 if __name__ == "__main__":
