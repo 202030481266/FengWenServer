@@ -5,6 +5,7 @@ import os
 from typing import Optional, Dict
 from urllib.parse import urlparse
 
+from pydantic import ValidationError
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi_cache import FastAPICache
 from sqlalchemy.orm import Session
@@ -460,4 +461,156 @@ async def get_cache_stats(_: str = Depends(get_admin_user)):
         }
     except Exception as e:
         logger.error(f"Error getting cache stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/test/send-email/{record_id}")
+async def test_send_email(
+        record_id: str,
+        db: Session = Depends(get_db),
+        email_service=Depends(get_email_service),
+        mjml_service=Depends(get_mjml_service)
+):
+    """测试邮件发送功能 - 仅用于开发环境"""
+    try:
+        # 安全检查：仅在非生产环境下可用
+        if os.getenv("ENVIRONMENT") == "production":
+            raise HTTPException(
+                status_code=403,
+                detail="This endpoint is not available in production"
+            )
+
+        logger.info(f"[TEST EMAIL] Starting email test for record: {record_id}")
+
+        # 查询记录
+        record = db.query(AstrologyRecord).filter(
+            AstrologyRecord.id == record_id
+        ).first()
+
+        if not record:
+            logger.error(f"[TEST EMAIL] Record {record_id} not found")
+            raise HTTPException(status_code=404, detail=f"Record {record_id} not found")
+
+        # 检查是否有完整结果
+        if not record.full_result_en:
+            logger.error(f"[TEST EMAIL] No full_result_en for record {record_id}")
+            raise HTTPException(
+                status_code=400,
+                detail="Record does not have full_result_en"
+            )
+
+        try:
+            full_result_en = json.loads(str(record.full_result_en))
+            astrology_result = AstrologyResultsView.model_validate(full_result_en)
+
+            # 获取有利元素以选择邮件模板
+            advantage_element = astrology_result.bazi.data.xiyongshen.rizhu_tiangan
+            logger.info(f"[TEST EMAIL] Advantage element: {advantage_element}")
+
+            # 根据元素选择邮件模板
+            email_template_map = {
+                '水': 'astrology_report_water.mjml.j2',
+                'water': 'astrology_report_water.mjml.j2',
+                '火': 'astrology_report_fire.mjml.j2',
+                'fire': 'astrology_report_fire.mjml.j2',
+                '金': 'astrology_report_metal.mjml.j2',
+                'metal': 'astrology_report_metal.mjml.j2',
+                '木': 'astrology_report_wood.mjml.j2',
+                'wood': 'astrology_report_wood.mjml.j2',
+            }
+
+            # 获取模板，默认使用 earth
+            email_template = email_template_map.get(
+                advantage_element.lower() if advantage_element else '',
+                'astrology_report_earth.mjml.j2'
+            )
+
+            logger.info(f"[TEST EMAIL] Using template: {email_template}")
+
+            # 渲染邮件内容
+            email_content = mjml_service.render_email(
+                template_name=email_template,
+                astrology_results=astrology_result
+            )
+
+            # 发送邮件
+            email_sent = await email_service.send_astrology_result_email(
+                email=record.email,
+                astrology_result=email_content,
+                subject='[TEST] Your Astrology Report',
+                content_type='html'
+            )
+
+            if email_sent:
+                logger.info(f"[TEST EMAIL] Email successfully sent to {record.email}")
+                return {
+                    "status": "success",
+                    "message": f"Test email sent to {record.email}",
+                    "record_id": record_id,
+                    "email": record.email,
+                    "template_used": email_template,
+                    "advantage_element": advantage_element
+                }
+            else:
+                logger.error(f"[TEST EMAIL] Failed to send email to {record.email}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to send email to {record.email}"
+                )
+
+        except json.JSONDecodeError as e:
+            logger.error(f"[TEST EMAIL] Invalid JSON in full_result_en: {e}")
+            raise HTTPException(status_code=400, detail="Invalid JSON in full_result_en")
+        except ValidationError as e:
+            logger.error(f"[TEST EMAIL] Validation error: {e}")
+            raise HTTPException(status_code=400, detail=f"Data validation error: {str(e)}")
+        except Exception as e:
+            logger.error(f"[TEST EMAIL] Email service error: {e}")
+            raise HTTPException(status_code=500, detail=f"Email service error: {str(e)}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[TEST EMAIL] Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+@router.get("/test/list-records")
+async def list_test_records(
+        skip: int = 0,
+        limit: int = 10,
+        only_unpurchased: bool = False,
+        db: Session = Depends(get_db)
+):
+    """列出可用于测试的记录 - 仅用于开发环境"""
+    if os.getenv("ENVIRONMENT") == "production":
+        raise HTTPException(
+            status_code=403,
+            detail="This endpoint is not available in production"
+        )
+    try:
+        query = db.query(AstrologyRecord)
+        if only_unpurchased:
+            query = query.filter(AstrologyRecord.is_purchased == False)
+        query = query.filter(AstrologyRecord.full_result_en != None)
+        records = query.order_by(AstrologyRecord.created_at.desc()).offset(skip).limit(limit).all()
+        result = []
+        for record in records:
+            result.append({
+                "id": record.id,
+                "email": record.email,
+                "is_purchased": record.is_purchased,
+                "shopify_order_id": record.shopify_order_id,
+                "created_at": record.created_at.isoformat() if record.created_at else None,
+                "has_full_result": bool(record.full_result_en)
+            })
+        return {
+            "total": len(result),
+            "skip": skip,
+            "limit": limit,
+            "records": result
+        }
+
+    except Exception as e:
+        logger.error(f"[TEST] Error listing records: {e}")
         raise HTTPException(status_code=500, detail=str(e))
