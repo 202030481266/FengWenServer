@@ -172,7 +172,7 @@ async def admin_logout():
     return response
 
 
-@app.get("/admin", response_class=HTMLResponse)
+@app.get("/admin/", response_class=HTMLResponse)
 async def admin_dashboard(request: Request):
     """管理员后台主页面"""
     current_user = get_current_admin_user(request)
