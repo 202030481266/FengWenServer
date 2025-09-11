@@ -20,7 +20,7 @@ load_dotenv()
 def get_mjml_executable_path() -> str | None:
     home = Path.home()
     if os.getenv("MJML_EXECUTABLE_PATH", None) is not None:  # 优先使用环境变量
-        path = os.getenv("MJML_EXECUTABLE_PATH")
+        path = Path(os.getenv("MJML_EXECUTABLE_PATH"))  # 转换为 Path 对象
     else:
         if sys.platform == "win32":
             logger.info("Detect Windows System, use default path")
@@ -53,6 +53,7 @@ def get_mjml_executable_path() -> str | None:
         else:
             logger.error(f"Unsupported platform: {sys.platform}")
             return None
+
     if path and path.exists():
         logger.info(f"Found mjml executable: {path}")
         return str(path)
