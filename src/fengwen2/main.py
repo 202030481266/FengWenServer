@@ -3,7 +3,7 @@ import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Depends, HTTPException, Header
+from fastapi import FastAPI, Depends, HTTPException, Header, Query
 from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -118,12 +118,14 @@ async def admin_interface():
 
 
 @app.get("/admin/admin-page")
-async def get_admin_page(authorization: Optional[str] = Header(None)):
+async def get_admin_page(authorization: Optional[str] = Header(None), token: Optional[str] = Query(None)):
     """Serve admin management page from template"""
     from src.fengwen2.api_routes import ADMIN_PASSWORD
     
-    # Check authentication
+    # Check authentication from header or URL parameter
     is_authenticated = False
+    
+    # Check authorization header first
     if authorization:
         try:
             scheme, credentials = authorization.split()
@@ -131,6 +133,10 @@ async def get_admin_page(authorization: Optional[str] = Header(None)):
                 is_authenticated = True
         except ValueError:
             pass
+    
+    # If not authenticated via header, check URL parameter
+    if not is_authenticated and token == ADMIN_PASSWORD:
+        is_authenticated = True
     
     if not is_authenticated:
         # Return a page that redirects to login with a message

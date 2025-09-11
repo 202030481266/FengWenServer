@@ -47,7 +47,9 @@
     </div>
 
     <script>
-        const ADMIN_TOKEN = "admin123";
+        // Get token from URL parameter or use default
+        const urlParams = new URLSearchParams(window.location.search);
+        const ADMIN_TOKEN = urlParams.get('token') || "admin123";
         
         // Add authentication to all API calls
         const authHeaders = {

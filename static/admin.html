@@ -76,9 +76,8 @@
                 // Check if user was redirected here and should go to admin-page
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('redirected') === 'true') {
-                    // Store token in sessionStorage for the redirect
-                    sessionStorage.setItem('adminToken', ADMIN_TOKEN);
-                    window.location.href = '/admin/admin-page';
+                    // Navigate to admin-page with token parameter
+                    window.location.href = `/admin/admin-page?token=${ADMIN_TOKEN}`;
                     return;
                 }
                 
