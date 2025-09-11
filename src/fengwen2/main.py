@@ -75,29 +75,40 @@ app.add_middleware(
 # Include API routes
 app.include_router(router, prefix="/api")
 
-# Mount static files for admin interface
+# Mount static files directory
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 else:
     logger.warning("Static directory not found")
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 async def root():
-    """redirect to user interface"""
+    """API root endpoint - redirect to documentation"""
+    return {
+        "message": "Astrology Fortune API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "admin": "/admin/"
+    }
+
+
+@app.get("/admin/", response_class=HTMLResponse)
+async def admin_interface():
+    """Serve admin management interface"""
     try:
-        with open("static/index.html", "r", encoding="utf-8") as f:
+        with open("static/admin.html", "r", encoding="utf-8") as f:
             content = f.read()
         return HTMLResponse(content)
     except FileNotFoundError:
-        logger.warning("User interface HTML not found")
+        logger.warning("Admin interface HTML not found")
         return HTMLResponse(
             content="""
             <html>
-                <head><title>Astrology Fortune</title></head>
+                <head><title>Admin Interface Not Found</title></head>
                 <body>
-                    <h1>Welcome to Astrology Fortune API</h1>
-                    <p>User interface not found. Please check the static files.</p>
+                    <h1>Admin Interface Not Found</h1>
+                    <p>The admin interface file is missing. Please check the static files.</p>
                     <p>API documentation: <a href="/docs">/docs</a></p>
                 </body>
             </html>
