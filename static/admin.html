@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>后台管理系统</title>
+    <style>
+        :root {
+            --primary-color: #6b1e6b;
+            --primary-light: #ac56d8;
+            --primary-dark: #4e334e;
+            --secondary-color: #f176bd;
+            --secondary-light: #f1f9ff;
+            --background-default: #faf9fe;
+            --background-paper: #fcfcfc;
+            --text-primary: #66246b;
+            --text-secondary: #6b1e6b;
+            --success-color: #4caf50;
+            --error-color: #f44336;
+            --warning-color: #ff9800;
+            --info-color: #2196f3;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #faf9fe 0%, #f1f9ff 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(107, 30, 107, 0.2);
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            background: white;
+            padding: 10px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(107, 24, 140, 0.1);
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+            color: white;
+            box-shadow: 0 4px 10px rgba(107, 24, 140, 0.3);
+        }
+
+        .tab:hover:not(.active) {
+            background: var(--background-default);
+        }
+
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(107, 24, 140, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(107, 24, 140, 0.15);
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .product-card {
+            position: relative;
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(107, 24, 140, 0.1);
+        }
+
+        .product-image-container {
+            width: 100%;
+            height: 200px;
+            background: var(--background-default);
+            border-radius: 15px;
+            margin-bottom: 15px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .product-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: cover;
+            border-radius: 15px;
+        }
+
+        .image-upload-label {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--primary-color);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .image-upload-label:hover {
+            background: var(--primary-light);
+            transform: scale(1.05);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 3px rgba(172, 86, 216, 0.1);
+        }
+
+        .form-textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            min-height: 100px;
+            resize: vertical;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 3px rgba(172, 86, 216, 0.1);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(107, 24, 140, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--background-default);
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--error-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(244, 67, 54, 0.3);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(76, 175, 80, 0.3);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .translation-item {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 10px rgba(107, 24, 140, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .translation-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 6px 15px rgba(107, 24, 140, 0.12);
+        }
+
+        .translation-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+
+        .translation-text {
+            padding: 15px;
+            background: var(--background-default);
+            border-radius: 10px;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .translation-label {
+            font-size: 12px;
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            color: #2e7d32;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-error {
+            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+            color: #c62828;
+            border-left: 4px solid var(--error-color);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--background-default);
+        }
+
+        .modal-title {
+            font-size: 24px;
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state svg {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(107, 24, 140, 0.08);
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 后台管理系统</h1>
+            <p>管理产品展示和翻译内容</p>
+        </div>
+
+        <div class="alert alert-success" id="successAlert"></div>
+        <div class="alert alert-error" id="errorAlert"></div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('products')">产品管理</button>
+            <button class="tab" onclick="switchTab('translations')">翻译管理</button>
+            <button class="tab" onclick="switchTab('stats')">统计信息</button>
+        </div>
+
+        <!-- 产品管理 -->
+        <div id="products-section" class="content-section active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="productCount">3</div>
+                    <div class="stat-label">产品总数</div>
+                </div>
+            </div>
+
+            <div class="products-grid" id="productsGrid">
+                <!-- 产品卡片将在这里动态生成 -->
+            </div>
+        </div>
+
+        <!-- 翻译管理 -->
+        <div id="translations-section" class="content-section">
+            <div class="card">
+                <h2 style="color: var(--primary-color); margin-bottom: 20px;">添加新翻译</h2>
+                <div class="form-group">
+                    <label class="form-label">中文文本</label>
+                    <textarea class="form-textarea" id="newChineseText" placeholder="输入中文文本..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">英文翻译</label>
+                    <textarea class="form-textarea" id="newEnglishText" placeholder="输入英文翻译..."></textarea>
+                </div>
+                <button class="btn btn-primary" onclick="addTranslation()">
+                    添加翻译
+                </button>
+            </div>
+
+            <div class="card">
+                <h2 style="color: var(--primary-color); margin-bottom: 20px;">翻译列表</h2>
+                <div id="translationsList">
+                    <!-- 翻译项将在这里动态生成 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计信息 -->
+        <div id="stats-section" class="content-section">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalProducts">3</div>
+                    <div class="stat-label">产品总数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalTranslations">0</div>
+                    <div class="stat-label">翻译对数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="lastUpdate">-</div>
+                    <div class="stat-label">最后更新</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 style="color: var(--primary-color); margin-bottom: 20px;">系统信息</h2>
+                <p>API 端点: <code id="apiEndpoint">http://localhost:8000/api</code></p>
+                <p>版本: <code>1.0.0</code></p>
+                <div class="btn-group" style="margin-top: 20px;">
+                    <button class="btn btn-secondary" onclick="testConnection()">测试连接</button>
+                    <button class="btn btn-primary" onclick="refreshAllData()">刷新所有数据</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑翻译模态框 -->
+    <div class="modal" id="editTranslationModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">编辑翻译</h2>
+            </div>
+            <div class="form-group">
+                <label class="form-label">中文文本</label>
+                <textarea class="form-textarea" id="editChineseText"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">英文翻译</label>
+                <textarea class="form-textarea" id="editEnglishText"></textarea>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="closeEditModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveTranslationEdit()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API 配置
+        const API_BASE = 'http://localhost:8000/api';
+        let currentEditingTranslationId = null;
+        let products = [];
+        let translations = [];
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProducts();
+            loadTranslations();
+            updateStats();
+        });
+
+        // 标签切换
+        function switchTab(tab) {
+            // 更新标签状态
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // 更新内容显示
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+            document.getElementById(`${tab}-section`).classList.add('active');
+        }
+
+        // 显示提示
+        function showAlert(message, type = 'success') {
+            const alertEl = document.getElementById(type === 'success' ? 'successAlert' : 'errorAlert');
+            alertEl.textContent = message;
+            alertEl.classList.add('show');
+            setTimeout(() => {
+                alertEl.classList.remove('show');
+            }, 3000);
+        }
+
+        // 加载产品
+        async function loadProducts() {
+            try {
+                const response = await fetch(`${API_BASE}/products`);
+                products = await response.json();
+                renderProducts();
+                updateStats();
+            } catch (error) {
+                console.error('加载产品失败:', error);
+                showAlert('加载产品失败', 'error');
+            }
+        }
+
+        // 渲染产品
+        function renderProducts() {
+            const grid = document.getElementById('productsGrid');
+            grid.innerHTML = products.map((product, index) => `
+                <div class="product-card">
+                    <div class="product-image-container">
+                        ${product.image_url ? 
+                            `<img src="${product.image_url}" alt="${product.name}" class="product-image" onerror="this.src='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" fill="%23f0f0f0"/%3E%3Ctext x="50" y="50" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3E暂无图片%3C/text%3E%3C/svg%3E'">` :
+                            `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+                                <rect width="100" height="100" fill="#f0f0f0"/>
+                                <text x="50" y="50" text-anchor="middle" dy=".3em" fill="#999" font-size="14">暂无图片</text>
+                            </svg>`
+                        }
+                        <label class="image-upload-label" for="image-upload-${product.id}">
+                            上传图片
+                        </label>
+                        <input type="file" id="image-upload-${product.id}" accept="image/*" onchange="handleImageUpload(${product.id}, this)">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">产品名称</label>
+                        <input type="text" class="form-input" id="name-${product.id}" value="${product.name || ''}" placeholder="输入产品名称">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">图片链接</label>
+                        <input type="text" class="form-input" id="image-${product.id}" value="${product.image_url || ''}" placeholder="图片URL">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">跳转链接</label>
+                        <input type="text" class="form-input" id="redirect-${product.id}" value="${product.redirect_url || ''}" placeholder="点击后跳转的URL">
+                    </div>
+                    <button class="btn btn-primary" onclick="updateProduct(${product.id})">
+                        保存更改
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // 更新产品
+        async function updateProduct(productId) {
+            const name = document.getElementById(`name-${productId}`).value;
+            const imageUrl = document.getElementById(`image-${productId}`).value;
+            const redirectUrl = document.getElementById(`redirect-${productId}`).value;
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/products/${productId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        image_url: imageUrl,
+                        redirect_url: redirectUrl
+                    })
+                });
+
+                if (response.ok) {
+                    showAlert('产品更新成功');
+                    loadProducts();
+                } else {
+                    throw new Error('更新失败');
+                }
+            } catch (error) {
+                console.error('更新产品失败:', error);
+                showAlert('更新产品失败', 'error');
+            }
+        }
+
+        // 处理图片上传
+        function handleImageUpload(productId, input) {
+            const file = input.files[0];
+            if (file) {
+                // 这里可以实现图片上传到服务器的逻辑
+                // 暂时使用本地预览
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById(`image-${productId}`).value = e.target.result;
+                    // 更新预览
+                    const container = input.closest('.product-card').querySelector('.product-image-container');
+                    container.querySelector('img, svg').outerHTML = `<img src="${e.target.result}" alt="Product" class="product-image">`;
+                };
+                reader.readAsDataURL(file);
+                
+                showAlert('图片已选择，请点击保存更改按钮');
+            }
+        }
+
+        // 加载翻译
+        async function loadTranslations() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/translations`);
+                translations = await response.json();
+                renderTranslations();
+                updateStats();
+            } catch (error) {
+                console.error('加载翻译失败:', error);
+                showAlert('加载翻译失败', 'error');
+            }
+        }
+
+        // 渲染翻译
+        function renderTranslations() {
+            const list = document.getElementById('translationsList');
+            if (translations.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+                        </svg>
+                        <p>暂无翻译内容</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = translations.map(trans => `
+                <div class="translation-item">
+                    <div class="translation-content">
+                        <div class="translation-text">
+                            <div class="translation-label">中文</div>
+                            <div>${trans.chinese_text}</div>
+                        </div>
+                        <div class="translation-text">
+                            <div class="translation-label">English</div>
+                            <div>${trans.english_text}</div>
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-secondary" onclick="editTranslation(${trans.id})">编辑</button>
+                        <button class="btn btn-danger" onclick="deleteTranslation(${trans.id})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 添加翻译
+        async function addTranslation() {
+            const chineseText = document.getElementById('newChineseText').value.trim();
+            const englishText = document.getElementById('newEnglishText').value.trim();
+
+            if (!chineseText || !englishText) {
+                showAlert('请填写完整的翻译内容', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/translations`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        chinese_text: chineseText,
+                        english_text: englishText
+                    })
+                });
+
+                if (response.ok) {
+                    showAlert('翻译添加成功');
+                    document.getElementById('newChineseText').value = '';
+                    document.getElementById('newEnglishText').value = '';
+                    loadTranslations();
+                } else {
+                    throw new Error('添加失败');
+                }
+            } catch (error) {
+                console.error('添加翻译失败:', error);
+                showAlert('添加翻译失败', 'error');
+            }
+        }
+
+        // 编辑翻译
+        function editTranslation(id) {
+            const translation = translations.find(t => t.id === id);
+            if (translation) {
+                currentEditingTranslationId = id;
+                document.getElementById('editChineseText').value = translation.chinese_text;
+                document.getElementById('editEnglishText').value = translation.english_text;
+                document.getElementById('editTranslationModal').classList.add('show');
+            }
+        }
+
+        // 关闭编辑模态框
+        function closeEditModal() {
+            document.getElementById('editTranslationModal').classList.remove('show');
+            currentEditingTranslationId = null;
+        }
+
+        // 保存翻译编辑
+        async function saveTranslationEdit() {
+            const chineseText = document.getElementById('editChineseText').value.trim();
+            const englishText = document.getElementById('editEnglishText').value.trim();
+
+            if (!chineseText || !englishText) {
+                showAlert('请填写完整的翻译内容', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/translations/${currentEditingTranslationId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        chinese_text: chineseText,
+                        english_text: englishText
+                    })
+                });
+
+                if (response.ok) {
+                    showAlert('翻译更新成功');
+                    closeEditModal();
+                    loadTranslations();
+                } else {
+                    throw new Error('更新失败');
+                }
+            } catch (error) {
+                console.error('更新翻译失败:', error);
+                showAlert('更新翻译失败', 'error');
+            }
+        }
+
+        // 删除翻译
+        async function deleteTranslation(id) {
+            if (!confirm('确定要删除这条翻译吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/translations/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    showAlert('翻译删除成功');
+                    loadTranslations();
+                } else {
+                    throw new Error('删除失败');
+                }
+            } catch (error) {
+                console.error('删除翻译失败:', error);
+                showAlert('删除翻译失败', 'error');
+            }
+        }
+
+        // 更新统计信息
+        function updateStats() {
+            document.getElementById('productCount').textContent = products.length;
+            document.getElementById('totalProducts').textContent = products.length;
+            document.getElementById('totalTranslations').textContent = translations.length;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('zh-CN');
+        }
+
+        // 测试连接
+        async function testConnection() {
+            try {
+                const response = await fetch(`${API_BASE.replace('/api', '/health')}`);
+                const data = await response.json();
+                if (data.status === 'healthy') {
+                    showAlert('连接成功！所有服务运行正常');
+                } else {
+                    showAlert('连接异常', 'error');
+                }
+            } catch (error) {
+                console.error('连接测试失败:', error);
+                showAlert('无法连接到服务器', 'error');
+            }
+        }
+
+        // 刷新所有数据
+        async function refreshAllData() {
+            showAlert('正在刷新数据...');
+            await Promise.all([
+                loadProducts(),
+                loadTranslations()
+            ]);
+            updateStats();
+            showAlert('数据刷新完成');
+        }
+
+        // 处理模态框点击外部关闭
+        document.getElementById('editTranslationModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeEditModal();
+            }
+        });
+
+        // 监听键盘ESC关闭模态框
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeEditModal();
+            }
+        });
+
+        // 自动保存功能
+        let autoSaveTimer = null;
+        function setupAutoSave(productId) {
+            clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(() => {
+                updateProduct(productId);
+            }, 2000); // 2秒后自动保存
+        }
+
+        // 为输入框添加自动保存
+        document.addEventListener('input', function(e) {
+            if (e.target.classList.contains('form-input')) {
+                const productCard = e.target.closest('.product-card');
+                if (productCard) {
+                    const productId = parseInt(e.target.id.split('-')[1]);
+                    if (!isNaN(productId)) {
+                        setupAutoSave(productId);
+                    }
+                }
+            }
+        });
+
+        // 导出翻译数据
+        async function exportTranslations() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/export/translations`);
+                const data = await response.json();
+                
+                // 创建下载链接
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `translations_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                showAlert('翻译数据导出成功');
+            } catch (error) {
+                console.error('导出失败:', error);
+                showAlert('导出失败', 'error');
+            }
+        }
+
+        // 批量导入翻译
+        async function importTranslations(file) {
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                
+                if (!data.translations || !Array.isArray(data.translations)) {
+                    throw new Error('无效的导入文件格式');
+                }
+                
+                const translations = data.translations.map(t => ({
+                    chinese_text: t.chinese_text,
+                    english_text: t.english_text
+                }));
+                
+                const response = await fetch(`${API_BASE}/admin/translations/batch`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(translations)
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    showAlert(`成功导入 ${result.count} 条翻译`);
+                    loadTranslations();
+                } else {
+                    throw new Error('导入失败');
+                }
+            } catch (error) {
+                console.error('导入失败:', error);
+                showAlert('导入失败：' + error.message, 'error');
+            }
+        }
+
+        // 处理图片粘贴
+        document.addEventListener('paste', async function(e) {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            
+            for (const item of items) {
+                if (item.type.indexOf('image') !== -1) {
+                    const blob = item.getAsFile();
+                    const activeElement = document.activeElement;
+                    
+                    if (activeElement && activeElement.id && activeElement.id.startsWith('image-')) {
+                        const productId = parseInt(activeElement.id.split('-')[1]);
+                        if (!isNaN(productId)) {
+                            // 这里可以实现图片上传逻辑
+                            const reader = new FileReader();
+                            reader.onload = function(event) {
+                                activeElement.value = event.target.result;
+                                showAlert('图片已粘贴，请点击保存');
+                            };
+                            reader.readAsDataURL(blob);
+                        }
+                    }
+                }
+            }
+        });
+
+        // 搜索翻译功能
+        function searchTranslations(query) {
+            const filteredTranslations = translations.filter(t => 
+                t.chinese_text.toLowerCase().includes(query.toLowerCase()) ||
+                t.english_text.toLowerCase().includes(query.toLowerCase())
+            );
+            
+            // 渲染过滤后的结果
+            const list = document.getElementById('translationsList');
+            if (filteredTranslations.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <p>没有找到匹配的翻译</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = filteredTranslations.map(trans => `
+                <div class="translation-item">
+                    <div class="translation-content">
+                        <div class="translation-text">
+                            <div class="translation-label">中文</div>
+                            <div>${highlightText(trans.chinese_text, query)}</div>
+                        </div>
+                        <div class="translation-text">
+                            <div class="translation-label">English</div>
+                            <div>${highlightText(trans.english_text, query)}</div>
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-secondary" onclick="editTranslation(${trans.id})">编辑</button>
+                        <button class="btn btn-danger" onclick="deleteTranslation(${trans.id})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 高亮搜索文本
+        function highlightText(text, query) {
+            if (!query) return text;
+            const regex = new RegExp(`(${query})`, 'gi');
+            return text.replace(regex, '<mark style="background: yellow;">$1</mark>');
+        }
+
+        // 键盘快捷键
+        document.addEventListener('keydown', function(e) {
+            // Ctrl/Cmd + S 保存
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                const activeElement = document.activeElement;
+                if (activeElement && activeElement.classList.contains('form-input')) {
+                    const productCard = activeElement.closest('.product-card');
+                    if (productCard) {
+                        const productId = parseInt(activeElement.id.split('-')[1]);
+                        if (!isNaN(productId)) {
+                            updateProduct(productId);
+                        }
+                    }
+                }
+            }
+            
+            // Ctrl/Cmd + F 搜索
+            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                e.preventDefault();
+                const activeTab = document.querySelector('.tab.active').textContent;
+                if (activeTab.includes('翻译')) {
+                    const searchQuery = prompt('搜索翻译内容:');
+                    if (searchQuery) {
+                        searchTranslations(searchQuery);
+                    }
+                }
+            }
+        });
+
+        // 定时刷新数据（可选）
+        // setInterval(() => {
+        //     loadProducts();
+        //     loadTranslations();
+        //     updateStats();
+        // }, 60000); // 每分钟刷新一次
+
+        // 页面卸载前提示保存
+        window.addEventListener('beforeunload', function(e) {
+            const unsavedChanges = document.querySelectorAll('.form-input[data-changed="true"]');
+            if (unsavedChanges.length > 0) {
+                e.preventDefault();
+                e.returnValue = '您有未保存的更改，确定要离开吗？';
+                return e.returnValue;
+            }
+        });
+
+        // 标记输入框已更改
+        document.addEventListener('input', function(e) {
+            if (e.target.classList.contains('form-input')) {
+                e.target.setAttribute('data-changed', 'true');
+            }
+        });
+
+        // 更新产品成功后清除更改标记
+        const originalUpdateProduct = updateProduct;
+        updateProduct = async function(productId) {
+            const result = await originalUpdateProduct.call(this, productId);
+            // 清除该产品所有输入框的更改标记
+            document.querySelectorAll(`#name-${productId}, #image-${productId}, #redirect-${productId}`)
+                .forEach(input => input.removeAttribute('data-changed'));
+            return result;
+        };
+
+        // 实时预览功能
+        function setupImagePreview() {
+            document.addEventListener('input', function(e) {
+                if (e.target.id && e.target.id.startsWith('image-')) {
+                    const productId = e.target.id.split('-')[1];
+                    const imageUrl = e.target.value;
+                    const productCard = e.target.closest('.product-card');
+                    const imageContainer = productCard.querySelector('.product-image-container');
+                    
+                    if (imageUrl && imageUrl.startsWith('http')) {
+                        const img = new Image();
+                        img.onload = function() {
+                            imageContainer.querySelector('img, svg').outerHTML = 
+                                `<img src="${imageUrl}" alt="Product" class="product-image">`;
+                        };
+                        img.onerror = function() {
+                            imageContainer.querySelector('img, svg').outerHTML = 
+                                `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+                                    <rect width="100" height="100" fill="#f0f0f0"/>
+                                    <text x="50" y="50" text-anchor="middle" dy=".3em" fill="#999" font-size="14">图片加载失败</text>
+                                </svg>`;
+                        };
+                        img.src = imageUrl;
+                    }
+                }
+            });
+        }
+
+        // 批量操作功能
+        function setupBatchOperations() {
+            // 批量删除翻译
+            window.deleteSelectedTranslations = async function() {
+                const selected = document.querySelectorAll('.translation-checkbox:checked');
+                if (selected.length === 0) {
+                    showAlert('请选择要删除的翻译', 'error');
+                    return;
+                }
+                
+                if (!confirm(`确定要删除选中的 ${selected.length} 条翻译吗？`)) {
+                    return;
+                }
+                
+                const deletePromises = Array.from(selected).map(checkbox => {
+                    const translationId = parseInt(checkbox.dataset.translationId);
+                    return fetch(`${API_BASE}/admin/translations/${translationId}`, {
+                        method: 'DELETE'
+                    });
+                });
+                
+                try {
+                    await Promise.all(deletePromises);
+                    showAlert(`成功删除 ${selected.length} 条翻译`);
+                    loadTranslations();
+                } catch (error) {
+                    showAlert('批量删除失败', 'error');
+                }
+            };
+        }
+
+        // 初始化所有功能
+        function initializeApp() {
+            setupImagePreview();
+            setupBatchOperations();
+            
+            // 添加版本检查
+            checkAPIVersion();
+            
+            // 设置自动刷新（可选）
+            if (window.location.hostname === 'localhost') {
+                console.log('开发模式：启用自动刷新');
+                // setInterval(refreshAllData, 300000); // 5分钟刷新一次
+            }
+        }
+
+        // 检查API版本
+        async function checkAPIVersion() {
+            try {
+                const response = await fetch(`${API_BASE.replace('/api', '/')}`);
+                const data = await response.json();
+                console.log('API版本:', data.version);
+                
+                // 更新页面上的API端点显示
+                const apiEndpointEl = document.getElementById('apiEndpoint');
+                if (apiEndpointEl) {
+                    apiEndpointEl.textContent = API_BASE;
+                }
+            } catch (error) {
+                console.error('无法获取API版本信息:', error);
+            }
+        }
+
+        // 错误处理
+        window.addEventListener('error', function(e) {
+            console.error('全局错误:', e.error);
+            showAlert('发生错误，请刷新页面重试', 'error');
+        });
+
+        // 网络错误处理
+        window.addEventListener('offline', function() {
+            showAlert('网络连接已断开', 'error');
+        });
+
+        window.addEventListener('online', function() {
+            showAlert('网络连接已恢复');
+            refreshAllData();
+        });
+
+        // 初始化
+        initializeApp();
+    </script>
+</body>
+</html>
