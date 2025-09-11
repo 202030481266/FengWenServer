@@ -42,8 +42,7 @@ def validate_url(url: str) -> bool:
         parsed = urlparse(url)
         if not parsed.scheme.startswith('http'):
             return False
-        domain = parsed.netloc.split(':')[0]
-        return any(domain.endswith(allowed) for allowed in ALLOWED_DOMAINS)
+        return True
     except Exception as e:
         logger.error("Exception while validating URL: %s", e, exc_info=True)
         return False
