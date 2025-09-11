@@ -3,10 +3,13 @@ import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from src.fengwen2.admin_auth import get_current_admin_user, create_access_token, verify_password, ADMIN_USERNAME, \
+    ADMIN_PASSWORD_HASH
 from src.fengwen2.api_routes import router
 from src.fengwen2.cache_config import init_cache
 from src.fengwen2.database import create_tables
@@ -81,7 +84,6 @@ else:
     logger.warning("Static directory not found")
 
 
-
 @app.get("/")
 async def root():
     """API root endpoint - redirect to documentation"""
@@ -90,8 +92,6 @@ async def root():
         "version": "1.0.0",
         "docs": "/docs"
     }
-
-
 
 
 @app.get("/health")
@@ -105,6 +105,77 @@ async def health():
         }
     }
     return health_status
+
+
+# Admin routes
+@app.get("/admin/login")
+async def admin_login_page():
+    """管理员登录页面 - 重定向到静态文件"""
+    login_html_path = os.path.join("static", "login.html")
+    if not os.path.exists(login_html_path):
+        raise HTTPException(status_code=404, detail="登录页面文件未找到")
+
+    return FileResponse(login_html_path, media_type="text/html")
+
+
+@app.post("/admin/login")
+async def admin_login(request: Request):
+    """管理员登录处理"""
+    try:
+        data = await request.json()
+        username = data.get("username")
+        password = data.get("password")
+
+        if not username or not password:
+            raise HTTPException(status_code=400, detail="用户名和密码不能为空")
+
+        if username != ADMIN_USERNAME or not verify_password(password, ADMIN_PASSWORD_HASH):
+            raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+        # 创建访问令牌
+        access_token = create_access_token(data={"sub": username})
+
+        # 创建响应并设置cookie
+        response = RedirectResponse(url="/admin", status_code=302)
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=60 * 60 * 24  # 24小时
+        )
+
+        return response
+
+    except Exception as e:
+        logger.error(f"登录错误: {e}")
+        raise HTTPException(status_code=500, detail="服务器内部错误")
+
+
+@app.get("/admin/logout")
+async def admin_logout():
+    """管理员登出"""
+    response = RedirectResponse(url="/admin/login", status_code=302)
+    response.delete_cookie(key="access_token")
+    return response
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request):
+    """管理员后台主页面"""
+    current_user = get_current_admin_user(request)
+    if not current_user:
+        return RedirectResponse(url="/admin/login", status_code=302)
+
+    admin_html_path = os.path.join("static", "admin.html")
+    if not os.path.exists(admin_html_path):
+        raise HTTPException(status_code=404, detail="管理界面文件未找到")
+
+    with open(admin_html_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    return HTMLResponse(content=content)
 
 
 if __name__ == "__main__":
