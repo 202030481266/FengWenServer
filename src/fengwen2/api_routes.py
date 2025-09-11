@@ -11,6 +11,7 @@ from fastapi_cache import FastAPICache
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from src.fengwen2.admin_auth import get_current_admin_user
 from src.fengwen2.admin_models import (
     Product, TranslationPair as DBTranslationPair,
     UserInfoRequest, EmailRequest, VerificationRequest, TranslationPairUpdate,
@@ -46,6 +47,17 @@ def validate_url(url: str) -> bool:
     except Exception as e:
         logger.error("Exception while validating URL: %s", e, exc_info=True)
         return False
+
+
+def require_admin_auth(request: Request):
+    """管理员认证依赖"""
+    current_user = get_current_admin_user(request)
+    if not current_user:
+        raise HTTPException(
+            status_code=401,
+            detail="需要管理员认证"
+        )
+    return current_user
 
 
 def clean_text(text: str) -> str:
@@ -273,9 +285,11 @@ async def get_products(db: Session = Depends(get_db)):
 
 @router.put("/admin/products/{product_id}")
 async def update_product(
+        request: Request,
         product_id: int,
         product_update: ProductUpdate,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        _: str = Depends(require_admin_auth)
 ):
     """更新产品信息"""
     try:
@@ -314,7 +328,12 @@ async def update_product(
 
 
 @router.delete("/admin/products/{product_id}")
-async def delete_product(product_id: int, db: Session = Depends(get_db)):
+async def delete_product(
+        request: Request,
+        product_id: int,
+        db: Session = Depends(get_db),
+        _: str = Depends(require_admin_auth)
+):
     """删除产品 - 注意：由于系统需要保持3个产品，删除后会自动创建新的空产品"""
     try:
         product = db.query(Product).filter(Product.id == product_id).first()
@@ -342,7 +361,12 @@ async def delete_product(product_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/admin/products")
-async def create_product(product: ProductUpdate, db: Session = Depends(get_db)):
+async def create_product(
+        request: Request,
+        product: ProductUpdate,
+        db: Session = Depends(get_db),
+        _: str = Depends(require_admin_auth)
+):
     """创建新产品"""
     try:
         # 检查产品数量，如果大于3个的话那就要删除其中的一些
@@ -378,14 +402,23 @@ async def create_product(product: ProductUpdate, db: Session = Depends(get_db)):
 
 
 @router.get("/admin/translations")
-async def get_translations(db: Session = Depends(get_db)):
+async def get_translations(
+        request: Request,
+        db: Session = Depends(get_db),
+        _: str = Depends(require_admin_auth)
+):
     """Get all translation pairs"""
     translations = db.query(DBTranslationPair).all()
     return translations
 
 
 @router.post("/admin/translations")
-async def add_translation(translation: TranslationPairRequest, db: Session = Depends(get_db)):
+async def add_translation(
+        request: Request,
+        translation: TranslationPairRequest,
+        db: Session = Depends(get_db),
+        _: str = Depends(require_admin_auth)
+):
     """Add translation pair"""
     new_translation = DBTranslationPair(
         chinese_text=clean_text(translation.chinese_text),
@@ -401,7 +434,13 @@ async def add_translation(translation: TranslationPairRequest, db: Session = Dep
 
 
 @router.put("/admin/translations/{translation_id}")
-async def update_translation(translation_id: int, translation: TranslationPairUpdate, db: Session = Depends(get_db)):
+async def update_translation(
+        request: Request,
+        translation_id: int,
+        translation: TranslationPairUpdate,
+        db: Session = Depends(get_db),
+        _: str = Depends(require_admin_auth)
+):
     """Update translation pair"""
     existing = db.query(DBTranslationPair).filter(DBTranslationPair.id == translation_id).first()
     if not existing:
@@ -418,7 +457,12 @@ async def update_translation(translation_id: int, translation: TranslationPairUp
 
 
 @router.delete("/admin/translations/{translation_id}")
-async def delete_translation(translation_id: int, db: Session = Depends(get_db)):
+async def delete_translation(
+        request: Request,
+        translation_id: int,
+        db: Session = Depends(get_db),
+        _: str = Depends(require_admin_auth)
+):
     """删除翻译对"""
     try:
         translation = db.query(DBTranslationPair).filter(
@@ -439,7 +483,12 @@ async def delete_translation(translation_id: int, db: Session = Depends(get_db))
 
 
 @router.get("/admin/translations/{translation_id}")
-async def get_translation(translation_id: int, db: Session = Depends(get_db)):
+async def get_translation(
+        request: Request,
+        translation_id: int,
+        db: Session = Depends(get_db),
+        _: str = Depends(require_admin_auth)
+):
     """获取单个翻译对详情"""
     translation = db.query(DBTranslationPair).filter(
         DBTranslationPair.id == translation_id
@@ -457,8 +506,10 @@ async def get_translation(translation_id: int, db: Session = Depends(get_db)):
 
 @router.post("/admin/translations/batch")
 async def add_batch_translations(
+        request: Request,
         translations: List[TranslationPairRequest],
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        _: str = Depends(require_admin_auth)
 ):
     """批量添加翻译对"""
     try:
@@ -577,7 +628,11 @@ async def create_payment_link(
 
 
 @router.post("/admin/cache/invalidate")
-async def invalidate_cache(request: Dict):
+async def invalidate_cache(
+        req: Request,
+        request: Dict,
+        _: str = Depends(require_admin_auth)
+):
     """Invalidate cache for a specific email or all cache"""
     email = request.get("email")
     clear_all = request.get("clear_all", False)
@@ -597,12 +652,15 @@ async def invalidate_cache(request: Dict):
 
 
 @router.get("/admin/cache/stats")
-async def get_cache_stats():
+async def get_cache_stats(
+        request: Request,
+        _: str = Depends(require_admin_auth)
+):
     """Get Redis cache statistics"""
     try:
         backend = FastAPICache.get_backend()
         info = await backend.redis.info("stats")
-        dbsize = await backend.redis.dbsize()
+        db_size = await backend.redis.dbsize()
 
         # Count astrology cache keys
         astrology_keys = 0
@@ -610,7 +668,7 @@ async def get_cache_stats():
             astrology_keys += 1
 
         return {
-            "total_keys": dbsize,
+            "total_keys": db_size,
             "astrology_cache_keys": astrology_keys,
             "hits": info.get("keyspace_hits", 0),
             "misses": info.get("keyspace_misses", 0),
@@ -775,7 +833,11 @@ async def list_test_records(
 
 
 @router.get("/admin/stats")
-async def get_admin_stats(db: Session = Depends(get_db)):
+async def get_admin_stats(
+        request: Request,
+        db: Session = Depends(get_db),
+        _: str = Depends(require_admin_auth)
+):
     """获取管理后台统计信息"""
     try:
         product_count = db.query(Product).count()
@@ -808,8 +870,10 @@ async def get_admin_stats(db: Session = Depends(get_db)):
 
 @router.post("/admin/upload/image")
 async def upload_image(
+        request: Request,
         file: UploadFile = File(...),
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        _: str = Depends(require_admin_auth)
 ):
     """上传图片文件"""
     try:
@@ -859,7 +923,11 @@ async def upload_image(
 
 
 @router.get("/admin/export/translations")
-async def export_translations(db: Session = Depends(get_db)):
+async def export_translations(
+        request: Request,
+        db: Session = Depends(get_db),
+        _: str = Depends(require_admin_auth)
+):
     """导出所有翻译为JSON格式"""
     try:
         translations = db.query(DBTranslationPair).all()
