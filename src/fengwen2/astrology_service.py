@@ -13,7 +13,7 @@ from src.fengwen2.astrology_views import *
 from src.fengwen2.calendar_converter import gregorian_to_lunar
 from src.fengwen2.database import AstrologyRecord
 from src.fengwen2.shopify_service import ShopifyPaymentService
-from src.fengwen2.translation import TranslationService
+from src.fengwen2.translation import EnhancedTranslationService
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class AstrologyService:
 
     def __init__(self):
         self.astrology_client = AstrologyAPIClient()
-        self.translation_service = TranslationService()
+        self.translation_service = EnhancedTranslationService()
         self.shopify_service = ShopifyPaymentService()
 
     @staticmethod
