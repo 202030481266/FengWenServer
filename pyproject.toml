@@ -14,7 +14,7 @@ requires-python = ">=3.8"
 dependencies = [
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
-    "sqlalchemy>=1.4.0",
+    "sqlalchemy>=2.0.0",
     "python-multipart>=0.0.5",
     "python-dotenv>=0.20.0",
     "httpx>=0.24.0",
@@ -31,6 +31,7 @@ dependencies = [
     "alibabacloud-dm20151123==1.6.2",
     "python-jose[cryptography]>=3.3.0",
     "passlib>=1.7.4",
+    "psycopg2-binary>=2.9.10",
 ]
 
 [project.optional-dependencies]

@@ -1,7 +1,7 @@
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
@@ -97,14 +97,33 @@ async def root():
 
 @app.get("/health")
 async def health():
+    """健康检查端点，包含数据库连接状态"""
+    from src.fengwen2.database import check_database_connection
+
+    # 检查数据库连接
+    db_status = "ok" if check_database_connection() else "error"
+
+    # 检查各个服务状态
+    service_manager = getattr(app.state, 'service_manager', None)
+
     health_status = {
-        "status": "healthy",
+        "status": "healthy" if db_status == "ok" else "degraded",
         "services": {
-            "email": "ok",
-            "shopify": "ok",
-            "astrology": "ok"
-        }
+            "database": db_status,
+            "email": "ok" if service_manager else "unknown",
+            "shopify": "ok" if service_manager else "unknown",
+            "astrology": "ok" if service_manager else "unknown"
+        },
+        "database_type": os.getenv("DB_TYPE", "unknown"),
+        "timestamp": datetime.utcnow().isoformat()
     }
+
+    if db_status != "ok":
+        return JSONResponse(
+            status_code=503,
+            content=health_status
+        )
+
     return health_status
 
 
