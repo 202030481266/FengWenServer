@@ -5,13 +5,13 @@
     <mj-font name="Playfair Display" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap" />
     <mj-font name="Lora" href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" />
     <mj-font name="Inter" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" />
-    
+
     <mj-attributes>
       <mj-all font-family="'Inter', 'Lora', 'Arial', sans-serif" />
       <mj-text color="#2c3e50" font-size="16px" line-height="1.6" />
       <mj-section padding="20px 0" />
     </mj-attributes>
-    
+
     <mj-style>
       .brand-title {
         font-family: 'Playfair Display', 'Georgia', serif !important;
@@ -60,29 +60,41 @@
         margin: 0 !important;
       }
       .verification-code {
+        background-color: #4299e1 !important;
+        color: #ffffff !important;
         font-family: 'Inter', 'Courier New', monospace !important;
         font-weight: 700 !important;
+        font-size: 28px !important;
         letter-spacing: 4px !important;
         text-align: center !important;
+        border-radius: 12px !important;
+        padding: 20px 40px !important;
+        border: 2px solid #4299e1 !important;
+        display: block !important;
+        margin: 0 auto !important;
+        user-select: all !important;
+        -webkit-user-select: all !important;
+        -moz-user-select: all !important;
+        -ms-user-select: all !important;
       }
     </mj-style>
   </mj-head>
-  
+
   <mj-body background-color="#ffffff">
     <!-- Header Section -->
     <mj-section background-color="#ffffff" padding="40px 20px 30px 20px">
       <mj-column>
-        <mj-text 
+        <mj-text
           css-class="brand-title"
-          font-size="32px" 
-          color="#1a202c" 
+          font-size="32px"
+          color="#1a202c"
           padding="0 0 8px 0">
           Astral Insights
         </mj-text>
-        <mj-text 
+        <mj-text
           css-class="subtitle"
-          font-size="16px" 
-          color="#718096" 
+          font-size="16px"
+          color="#718096"
           padding="0">
           Email Verification Code
         </mj-text>
@@ -94,72 +106,73 @@
       <mj-section padding="0">
         <mj-column>
           <!-- Greeting -->
-          <mj-text 
+          <mj-text
             css-class="greeting"
-            font-size="22px" 
-            color="#2d3748" 
+            font-size="22px"
+            color="#2d3748"
             padding="0 0 24px 0">
             Dear User,
           </mj-text>
-          
+
           <!-- Main message -->
-          <mj-text 
+          <mj-text
             css-class="body-text"
-            font-size="16px" 
-            color="#4a5568" 
+            font-size="16px"
+            color="#4a5568"
             padding="0 0 32px 0">
-            Thank you for choosing Astral Insights! To get your astrology test report, please use the verification code below:
+            Thank you for choosing Astral Insights! To complete your registration and secure your account, please use the verification code below:
           </mj-text>
 
-          <!-- Verification Code Button -->
-          <mj-section padding="0 0 32px 0">
-            <mj-column>
-              <mj-text
-                background-color="#4299e1"
-                color="#ffffff"
-                font-size="28px"
-                font-weight="bold"
-                border-radius="12px"
-                css-class="verification-code"
-                padding="20px 40px"
-                align="center"
-                font-family="Arial, sans-serif"
-                line-height="1.2">
-                {{code}}
-              </mj-text>
-            </mj-column>
-          </mj-section>
+            <!-- Verification Code Display -->
+            <mj-section padding="0 0 32px 0">
+              <mj-column>
+                <mj-text
+                  background-color="#4299e1"
+                  color="#ffffff"
+                  font-size="28px"
+                  font-weight="bold"
+                  border-radius="12px"
+                  css-class="verification-code"
+                  padding="20px 40px"
+                  align="center"
+                  font-family="'Inter', 'Arial', sans-serif"
+                  line-height="1.2"
+                  border="2px solid #4299e1">
+                  {{code}}
+                </mj-text>
+              </mj-column>
+            </mj-section>
 
           <!-- Important Notes Header -->
-          <mj-text 
+          <mj-text
             css-class="notes-header"
-            font-size="18px" 
-            color="#2d3748" 
+            font-size="18px"
+            color="#2d3748"
             padding="0 0 16px 0">
             Important Security Information:
           </mj-text>
 
           <!-- Notes List -->
-          <mj-text 
+          <mj-text
             css-class="notes-text"
-            font-size="15px" 
-            color="#4a5568" 
+            font-size="15px"
+            color="#4a5568"
             padding="0 0 12px 0">
             • <strong>Time Limit:</strong> This verification code expires in <strong>5 minutes</strong>. Please use it promptly to avoid delays.
           </mj-text>
-          
-          <mj-text 
+
+          <mj-text
             css-class="notes-text"
-            font-size="15px" 
-            color="#4a5568" 
+            font-size="15px"
+            color="#4a5568"
             padding="0 0 12px 0">
             • <strong>Privacy:</strong> Never share this code with anyone. Our team will never ask for your verification code.
           </mj-text>
-          
-          <mj-text 
+
+          <mj-text
             css-class="notes-text"
-            font-size="15px" 
-            color="#4a5568" 
+            font-size="15px"
+            color="#4a5568"
             padding="0">
             • <strong>Didn't request this?</strong> If you didn't initiate this verification, please ignore this email and contact our support team if you have concerns.
           </mj-text>
@@ -170,18 +183,18 @@
     <!-- Footer Section -->
     <mj-section background-color="#ffffff" border-top="1px solid #e2e8f0" padding="32px 20px 40px 20px">
       <mj-column>
-        <mj-text 
+        <mj-text
           css-class="footer-text"
-          font-size="13px" 
-          color="#a0aec0" 
+          font-size="13px"
+          color="#a0aec0"
           padding="0 0 12px 0">
           This is an automated security message. Please do not reply to this email.<br />
           For assistance, please contact our customer support team.
         </mj-text>
-        <mj-text 
+        <mj-text
           css-class="footer-text"
-          font-size="13px" 
-          color="#a0aec0" 
+          font-size="13px"
+          color="#a0aec0"
           padding="0">
           © 2024 Astral Insights - Explore the Mysteries of Destiny
         </mj-text>
