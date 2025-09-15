@@ -7,6 +7,7 @@ from typing import Dict, List
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, File, UploadFile, status
+from fastapi.responses import JSONResponse
 from fastapi_cache import FastAPICache
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -521,6 +522,14 @@ async def add_batch_translations(
         raise HTTPException(status_code=500, detail="Failed to add translations")
 
 
+def make_response(success: bool, error: str, message: str, status_code: int = 200):
+    """统一返回格式"""
+    return JSONResponse(
+        status_code=status_code,
+        content={"success": success, "error": error, "message": message}
+    )
+
+
 @router.post("/send-verification")
 async def send_verification_code(
         request: EmailRequest,
@@ -529,44 +538,25 @@ async def send_verification_code(
     """Send email verification code with proper exception handling"""
     try:
         message = await email_service.send_verification_email(request.email)
-        return {"success": True, "error": "", "message": message}
+        return make_response(True, "", message)
 
     except EmailFormatError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"success": False, "error": "INVALID_EMAIL", "message": str(e)}
-        )
+        return make_response(False, "INVALID_EMAIL", str(e), status.HTTP_400_BAD_REQUEST)
     except EmailNotExistError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"success": False, "error": "EMAIL_NOT_EXIST", "message": str(e)}
-        )
+        return make_response(False, "EMAIL_NOT_EXIST", str(e), status.HTTP_400_BAD_REQUEST)
     except EmailProviderError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"success": False, "error": "PROVIDER_ERROR", "message": str(e)}
-        )
+        return make_response(False, "PROVIDER_ERROR", str(e), status.HTTP_400_BAD_REQUEST)
     except EmailBlacklistedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"success": False, "error": "EMAIL_BLACKLISTED", "message": str(e)}
-        )
+        return make_response(False, "EMAIL_BLACKLISTED", str(e), status.HTTP_403_FORBIDDEN)
     except EmailRateLimitError as e:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={"success": False, "error": "RATE_LIMIT", "message": str(e)}
-        )
+        return make_response(False, "RATE_LIMIT", str(e), status.HTTP_429_TOO_MANY_REQUESTS)
     except EmailSendFailedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": "SEND_FAILED", "message": str(e)}
-        )
+        return make_response(False, "SEND_FAILED", str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as e:
         logger.error(f"Unexpected error in send_verification_code: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": "INTERNAL_ERROR", "message": "An unexpected error occurred. Please try again later."}
-        )
+        return make_response(False, "INTERNAL_ERROR",
+                             "An unexpected error occurred. Please try again later.",
+                             status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @router.post("/verify-email-first")
@@ -579,24 +569,17 @@ async def verify_email_first(
     try:
         message = email_service.verify_code(request.email, request.code)
         logger.info(f"[API] Email verification successful for: {request.email}")
-        return {"success": True, "error": "", "message": message}
-        
+        return make_response(True, "", message)
+
     except VerificationCodeExpiredError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"success": False, "error": "CODE_EXPIRED", "message": str(e)}
-        )
+        return make_response(False, "CODE_EXPIRED", str(e), status.HTTP_400_BAD_REQUEST)
     except VerificationCodeInvalidError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"success": False, "error": "INVALID_CODE", "message": str(e)}
-        )
+        return make_response(False, "INVALID_CODE", str(e), status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         logger.error(f"Unexpected error in verify_email_code: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": "INTERNAL_ERROR", "message": "An unexpected error occurred. Please try again later."}
-        )
+        return make_response(False, "INTERNAL_ERROR",
+                             "An unexpected error occurred. Please try again later.",
+                             status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @router.post("/astrology/calculate")
