@@ -252,9 +252,7 @@ class MJMLEmailService:
         Returns:
             最终的HTML邮件内容
         """
-        context = {
-            "code": code
-        }
+        context = {"code": code}
         if additional_context:
             context.update(additional_context)
         return self.render_email("verification_code.mjml.j2", context)

@@ -1,13 +1,9 @@
 import json
 import logging
 import os
-import random
-import string
-import warnings
 from abc import ABC, abstractmethod
 from enum import Enum
-from functools import wraps
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Tuple
 
 import redis
 from alibabacloud_credentials.client import Client as CredentialClient
@@ -20,8 +16,6 @@ from dotenv import load_dotenv
 from tencentcloud.common import credential
 from tencentcloud.common.exception.tencent_cloud_sdk_exception import TencentCloudSDKException
 from tencentcloud.ses.v20201002 import ses_client, models
-
-from src.fengwen2.astrology_views import AstrologyResultsView
 
 logger = logging.getLogger(__name__)
 
@@ -91,16 +85,6 @@ class VerificationCodeInvalidError(EmailError):
 class VerificationFailedError(EmailError):
     """General verification failure"""
     pass
-
-
-def deprecated(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        warnings.warn(f"{func.__name__} is deprecated",
-                      DeprecationWarning, stacklevel=2)
-        return func(*args, **kwargs)
-
-    return wrapper
 
 
 def validate_email_format(email: str) -> bool:
@@ -344,39 +328,18 @@ class AlibabaEmailProvider(BaseEmailProvider):
 class EmailService:
     """Unified email service with multiple provider support."""
 
-    _VCODE_PREFIX = "vcode:"
-    _VERIFIED_PREFIX = "verified:"
-
     def __init__(self):
-        if not redis_client:
-            raise ConnectionError("EmailService cannot operate without a Redis connection.")
-
-        self.redis = redis_client
-
         # Initialize providers
         self.providers = {}
         self._init_providers()
 
-        # Load configuration
-        self.verification_template = os.getenv("EMAIL_TEMPLATE_VERIFICATION", "145744")
-        self.result_template = os.getenv("EMAIL_TEMPLATE_ASTROLOGY_RESULT", "145745")
-        self.code_expiry_seconds = int(os.getenv("VERIFICATION_CODE_EXPIRY_SECONDS", 300))
-        self.verified_status_expiry_seconds = int(os.getenv("VERIFIED_STATUS_EXPIRY_SECONDS", 600))
-
         # Default providers for different email types
-        self.verification_provider = EmailProvider.TENCENT
+        # USE ALIBABA by default
+        self.verification_provider = EmailProvider.ALIBABA
         self.result_provider = EmailProvider.ALIBABA
 
     def _init_providers(self):
         """Initialize email providers based on available credentials."""
-        # Try to initialize Tencent provider
-        try:
-            self.providers[EmailProvider.TENCENT] = TencentEmailProvider()
-            logger.info("Tencent email provider initialized successfully")
-        except Exception as e:
-            logger.warning(f"Failed to initialize Tencent provider: {e}")
-
-        # Try to initialize Alibaba provider
         try:
             self.providers[EmailProvider.ALIBABA] = AlibabaEmailProvider()
             logger.info("Alibaba email provider initialized successfully")
@@ -395,17 +358,24 @@ class EmailService:
         extra_info = " ".join(f"{k}: {v}" for k, v in kwargs.items())
         logger.info(f"[EMAIL] {action} for {email}. {extra_info}")
 
-    @staticmethod
-    def generate_verification_code(length: int = 6) -> str:
-        """Generate random verification code."""
-        return ''.join(random.choices(string.digits, k=length))
-
-    async def send_verification_email(self, email: str) -> str:
+    async def send_verification_email(
+            self,
+            email: str,
+            content: str,
+            content_type: str = "html",
+            provider: Optional[EmailProvider] = None
+    ) -> EmailSendResult:
         """
-        Send verification code email using Tencent Cloud (template-based).
+        Send verification code email using specified provider (template-based).
+        
+        Args:
+            :param provider: Email provider to use (defaults to verification_provider)
+            :param content: The verification code email to send
+            :param email: Target email address
+            :param content_type: Email content type: html or plain-text
         
         Returns:
-            str: Success message
+            EmailSendResult: Result of the email sending operation
             
         Raises:
             EmailFormatError: If email format is invalid
@@ -415,153 +385,35 @@ class EmailService:
             EmailTemplateError: If template error occurs
             EmailProviderError: If provider error occurs
             EmailSendFailedError: If sending fails for other reasons
+
         """
         # Validate email format first
         if not validate_email_format(email):
             logger.warning(f"[EMAIL] Invalid email format: {email}")
             raise EmailFormatError("Invalid email address format")
 
-        verification_code = self.generate_verification_code()
-        redis_key = f"{self._VCODE_PREFIX}{email}"
-
-        provider = self.get_provider(self.verification_provider)
+        email_provider = provider if provider is not None else self.verification_provider
+        provider_instance = self.get_provider(email_provider)
 
         self._log_email_action(
             "Sending verification code",
             email,
             code="******",
-            provider=self.verification_provider.value
+            provider=email_provider.value
         )
 
-        # Use Tencent's template system for verification emails
-        result = await provider.send_email(
+        # Use template system for verification emails
+        result = await provider_instance.send_email(
             to_email=email,
             subject="Email Verification Code",
-            content="",  # Not used with template
-            template_id=self.verification_template,
-            template_data={"code": verification_code}
+            content=content,
+            content_type=content_type
         )
 
         if result.success:
-            self.redis.set(redis_key, verification_code, ex=self.code_expiry_seconds)
             self._log_email_action("Verification email sent successfully", email)
-            return "Verification code sent successfully"
-        else:
-            # This should not happen since provider.send_email should raise exceptions
-            # But keeping as fallback
-            raise EmailSendFailedError(result.message)
 
-    def verify_code(self, email: str, code: str) -> str:
-        """
-        Verify email code from Redis.
-        
-        Returns:
-            str: Success message
-            
-        Raises:
-            VerificationCodeExpiredError: If code has expired or doesn't exist
-            VerificationCodeInvalidError: If code is invalid
-        """
-        redis_key = f"{self._VCODE_PREFIX}{email}"
-        stored_code = self.redis.get(redis_key)
-
-        self._log_email_action("Verifying code", email, provided=code, stored=stored_code)
-
-        if not stored_code:
-            raise VerificationCodeExpiredError("Verification code has expired or does not exist")
-        
-        if stored_code != code:
-            raise VerificationCodeInvalidError("Invalid verification code")
-
-        pipe = self.redis.pipeline()
-        pipe.delete(redis_key)
-        verified_key = f"{self._VERIFIED_PREFIX}{email}"
-        pipe.set(verified_key, "true", ex=self.verified_status_expiry_seconds)
-        pipe.execute()
-
-        self._log_email_action("Code verification successful", email)
-        return "Email verified successfully"
-
-    def is_email_recently_verified(self, email: str) -> bool:
-        """Check if email's verified status key exists in Redis."""
-        verified_key = f"{self._VERIFIED_PREFIX}{email}"
-        is_verified = self.redis.exists(verified_key) > 0
-
-        self._log_email_action("Verification status check", email, is_valid=is_verified)
-        return is_verified
-
-    def get_verification_code_for_testing(self, email: str) -> Optional[str]:
-        """Get verification code from Redis for testing purposes."""
-        return self.redis.get(f"{self._VCODE_PREFIX}{email}")
-
-    @staticmethod
-    @deprecated
-    def _convert_full_result_to_template_data(full_result: Dict[str, Any]) -> Dict[str, str]:
-        """Convert full result JSON to template data. Use for Tencent Template of ID 146629, Now it is deprecated."""
-        results = AstrologyResultsView.model_validate(full_result)
-        bazi_data = results.bazi.data
-        liudao_data = results.liudao.data
-        zhengyuan_data = results.zhengyuan.data
-
-        template_data = {
-            # Basic Information
-            "name": bazi_data.base_info.name,
-            "na_yin": bazi_data.bazi_info.na_yin,
-            "gongli": bazi_data.base_info.gongli,
-            "nongli": bazi_data.base_info.nongli,
-            "sx": bazi_data.sx,
-            "xz": bazi_data.xz,
-            "bazi": bazi_data.bazi_info.bazi,
-            "zhengge": bazi_data.base_info.zhengge or "",
-
-            # Analysis Sections
-            "wuxing_desc": bazi_data.wuxing.detail_description,
-            "yinyuan_desc": bazi_data.yinyuan.sanshishu_yinyuan,
-            "caiyun_desc": bazi_data.caiyun.sanshishu_caiyun.detail_desc,
-
-            # Liudao Sections
-            "liudao_now_desc": liudao_data.liudao_info.now_info.liudao_detail_desc,
-            "liudao_past_desc": liudao_data.liudao_info.past_info.liudao_detail_desc,
-            "liudao_future_desc": liudao_data.liudao_info.future_info.liudao_detail_desc,
-
-            # True love profile
-            "face_shape": zhengyuan_data.zhengyuan_info.huaxiang.face_shape,
-            "eyebrow_shape": zhengyuan_data.zhengyuan_info.huaxiang.eyebrow_shape,
-            "eye_shape": zhengyuan_data.zhengyuan_info.huaxiang.eye_shape,
-            "mouth_shape": zhengyuan_data.zhengyuan_info.huaxiang.mouth_shape,
-            "nose_shape": zhengyuan_data.zhengyuan_info.huaxiang.nose_shape,
-            "body_shape": zhengyuan_data.zhengyuan_info.huaxiang.body_shape,
-
-            # True love traits
-            "romantic_personality": zhengyuan_data.zhengyuan_info.tezhi.romantic_personality,
-            "family_background": zhengyuan_data.zhengyuan_info.tezhi.family_background,
-            "career_wealth": zhengyuan_data.zhengyuan_info.tezhi.career_wealth,
-            "marital_happiness": zhengyuan_data.zhengyuan_info.tezhi.marital_happiness,
-
-            # True love guidance
-            "love_location": zhengyuan_data.zhengyuan_info.zhiyin.love_location,
-            "meeting_method": zhengyuan_data.zhengyuan_info.zhiyin.meeting_method,
-            "interaction_model": zhengyuan_data.zhengyuan_info.zhiyin.interaction_model,
-            "love_advice": zhengyuan_data.zhengyuan_info.zhiyin.love_advice,
-
-            # True love fortune
-            "yunshi_desc": zhengyuan_data.zhengyuan_info.yunshi,
-
-            # Elements Analysis
-            "jin_score": str(int(bazi_data.xiyongshen.jin_score)),
-            "mu_score": str(int(bazi_data.xiyongshen.mu_score)),
-            "shui_score": str(int(bazi_data.xiyongshen.shui_score)),
-            "huo_score": str(int(bazi_data.xiyongshen.huo_score)),
-            "tu_score": str(int(bazi_data.xiyongshen.tu_score)),
-            "tonglei": bazi_data.xiyongshen.tonglei,
-            "yilei": bazi_data.xiyongshen.yilei,
-
-            # Ba Zi Summary
-            "qiangruo": bazi_data.xiyongshen.qiangruo,
-            "xiyongshen_desc": bazi_data.xiyongshen.xiyongshen_desc,
-        }
-
-        return {k: str(v) for k, v in template_data.items()}
+        return result
 
     async def send_astrology_result_email(
             self,

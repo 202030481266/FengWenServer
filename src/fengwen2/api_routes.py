@@ -24,10 +24,12 @@ from src.fengwen2.cache_config import CACHE_TTL, CacheManager
 from src.fengwen2.database import get_db, AstrologyRecord
 from src.fengwen2.email_service import (
     EmailFormatError, EmailNotExistError, EmailBlacklistedError, EmailRateLimitError,
-    EmailProviderError, EmailSendFailedError,
-    VerificationCodeExpiredError, VerificationCodeInvalidError
+    EmailProviderError, EmailSendFailedError, validate_email_format
 )
 from src.fengwen2.service_manager import get_service_manager
+from src.fengwen2.verification_service import (
+    VerificationCodeExpiredError, VerificationCodeInvalidError
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +85,10 @@ def get_shopify_service():
 
 def get_astrology_service():
     return get_service_manager().get_astrology_service()
+
+
+def get_verification_service():
+    return get_service_manager().get_verification_service()
 
 
 def get_mjml_service():
@@ -533,12 +539,27 @@ def make_response(success: bool, error: str, message: str, status_code: int = 20
 @router.post("/send-verification")
 async def send_verification_code(
         request: EmailRequest,
-        email_service=Depends(get_email_service)
+        email_service=Depends(get_email_service),
+        verification_service=Depends(get_verification_service),
+        mjml_service=Depends(get_mjml_service),
 ):
     """Send email verification code with proper exception handling"""
     try:
-        message = await email_service.send_verification_email(request.email)
-        return make_response(True, "", message)
+        if not validate_email_format(request.email):
+            logger.warning(f"[API] Invalid email format: {request.email}")
+            return make_response(False, "INVALID_EMAIL", "Invalid email address format", status.HTTP_400_BAD_REQUEST)
+
+        verification_code = verification_service.generate_verification_code()
+        verification_code_email = mjml_service.render_verification_code_email(code=verification_code)
+
+        result = await email_service.send_verification_email(email=request.email, content=verification_code_email,
+                                                             content_type='html')
+        
+        if result.success:
+            verification_service.store_verification_code(request.email, verification_code)
+            return make_response(True, "", "Verification code sent successfully")
+        else:
+            return make_response(False, "SEND_FAILED", result[1], status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     except EmailFormatError as e:
         return make_response(False, "INVALID_EMAIL", str(e), status.HTTP_400_BAD_REQUEST)
@@ -562,12 +583,12 @@ async def send_verification_code(
 @router.post("/verify-email-first")
 async def verify_email_first(
         request: VerificationRequest,
-        email_service=Depends(get_email_service)
+        verification_service=Depends(get_verification_service)
 ):
     """Verify email code with proper exception handling"""
     logger.info(f"[API] Email verification started for: {request.email}")
     try:
-        message = email_service.verify_code(request.email, request.code)
+        message = verification_service.verify_code(request.email, request.code)
         logger.info(f"[API] Email verification successful for: {request.email}")
         return make_response(True, "", message)
 
@@ -586,12 +607,12 @@ async def verify_email_first(
 async def calculate_astrology(
         user_info: UserInfoRequest,
         db: Session = Depends(get_db),
-        email_service=Depends(get_email_service),
-        astrology_service=Depends(get_astrology_service)
+        astrology_service=Depends(get_astrology_service),
+        verification_service=Depends(get_verification_service)
 ):
     logger.info(f"[API] Astrology calculation started for email: {user_info.email}")
 
-    if not email_service.is_email_recently_verified(user_info.email):
+    if not verification_service.is_email_recently_verified(user_info.email):
         logger.warning(f"[API] Email not verified or expired for: {user_info.email}")
         raise HTTPException(status_code=400, detail="Please verify your email first")
 

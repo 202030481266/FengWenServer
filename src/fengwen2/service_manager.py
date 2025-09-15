@@ -18,10 +18,12 @@ class ServiceManager:
             from src.fengwen2.shopify_service import ShopifyPaymentService
             from src.fengwen2.astrology_service import AstrologyService
             from src.fengwen2.mjml_render_service import MJMLEmailService
+            from src.fengwen2.verification_service import VerificationService
 
             self.email_service = EmailService()
             self.shopify_service = ShopifyPaymentService()
             self.astrology_service = AstrologyService()
+            self.verification_service = VerificationService()
             self.mjml_render_service = MJMLEmailService(
                 template_dir="templates",  # 模板目录
                 mjml_options={
@@ -48,6 +50,9 @@ class ServiceManager:
 
     def get_astrology_service(self):
         return self.astrology_service
+
+    def get_verification_service(self):
+        return self.verification_service
 
     def get_mjml_service(self):
         return self.mjml_render_service
