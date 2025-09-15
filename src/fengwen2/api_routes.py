@@ -112,54 +112,6 @@ async def submit_user_info(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/send-verification")
-async def send_verification_code(
-        request: EmailRequest,
-        email_service=Depends(get_email_service)
-):
-    """Send email verification code with proper exception handling"""
-    try:
-        message = await email_service.send_verification_email(request.email)
-        return {"success": True, "message": message}
-        
-    except EmailFormatError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "INVALID_EMAIL", "message": str(e)}
-        )
-    except EmailNotExistError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "EMAIL_NOT_EXIST", "message": str(e)}
-        )
-    except EmailProviderError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "PROVIDER_ERROR", "message": str(e)}
-        )
-    except EmailBlacklistedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"error": "EMAIL_BLACKLISTED", "message": str(e)}
-        )
-    except EmailRateLimitError as e:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={"error": "RATE_LIMIT", "message": str(e)}
-        )
-    except EmailSendFailedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "SEND_FAILED", "message": str(e)}
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error in send_verification_code: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "INTERNAL_ERROR", "message": "An unexpected error occurred. Please try again later."}
-        )
-
-
 @router.post("/webhook/shopify")
 async def shopify_webhook(
         request: Request,
@@ -569,6 +521,54 @@ async def add_batch_translations(
         raise HTTPException(status_code=500, detail="Failed to add translations")
 
 
+@router.post("/send-verification")
+async def send_verification_code(
+        request: EmailRequest,
+        email_service=Depends(get_email_service)
+):
+    """Send email verification code with proper exception handling"""
+    try:
+        message = await email_service.send_verification_email(request.email)
+        return {"success": True, "error": "", "message": message}
+
+    except EmailFormatError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"success": False, "error": "INVALID_EMAIL", "message": str(e)}
+        )
+    except EmailNotExistError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"success": False, "error": "EMAIL_NOT_EXIST", "message": str(e)}
+        )
+    except EmailProviderError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"success": False, "error": "PROVIDER_ERROR", "message": str(e)}
+        )
+    except EmailBlacklistedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"success": False, "error": "EMAIL_BLACKLISTED", "message": str(e)}
+        )
+    except EmailRateLimitError as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"success": False, "error": "RATE_LIMIT", "message": str(e)}
+        )
+    except EmailSendFailedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"success": False, "error": "SEND_FAILED", "message": str(e)}
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in send_verification_code: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"success": False, "error": "INTERNAL_ERROR", "message": "An unexpected error occurred. Please try again later."}
+        )
+
+
 @router.post("/verify-email-first")
 async def verify_email_first(
         request: VerificationRequest,
@@ -579,23 +579,23 @@ async def verify_email_first(
     try:
         message = email_service.verify_code(request.email, request.code)
         logger.info(f"[API] Email verification successful for: {request.email}")
-        return {"success": True, "message": message}
+        return {"success": True, "error": "", "message": message}
         
     except VerificationCodeExpiredError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "CODE_EXPIRED", "message": str(e)}
+            detail={"success": False, "error": "CODE_EXPIRED", "message": str(e)}
         )
     except VerificationCodeInvalidError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "INVALID_CODE", "message": str(e)}
+            detail={"success": False, "error": "INVALID_CODE", "message": str(e)}
         )
     except Exception as e:
         logger.error(f"Unexpected error in verify_email_code: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "INTERNAL_ERROR", "message": "An unexpected error occurred. Please try again later."}
+            detail={"success": False, "error": "INTERNAL_ERROR", "message": "An unexpected error occurred. Please try again later."}
         )
 
 
