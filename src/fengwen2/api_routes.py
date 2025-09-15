@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Dict, List
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Request, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, File, UploadFile, status
 from fastapi_cache import FastAPICache
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -112,16 +112,53 @@ async def send_verification_code(
         request: EmailRequest,
         email_service=Depends(get_email_service)
 ):
-    """Send email verification code"""
+    """Send email verification code with detailed error handling"""
     try:
-        verification_code = await email_service.send_verification_email(request.email)
-        if verification_code:
-            return {"message": "Verification code sent to your email"}
+        success, message = await email_service.send_verification_email(request.email)
+
+        if success:
+            return {"success": True, "message": message}
         else:
-            raise HTTPException(status_code=500, detail="Failed to send verification code")
+            # 根据不同的错误信息返回适当的状态码
+            if "Invalid email" in message or "format" in message.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"error": "INVALID_EMAIL", "message": message}
+                )
+            elif "does not exist" in message or "unreachable" in message:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"error": "EMAIL_NOT_EXIST", "message": message}
+                )
+            elif "blacklist" in message.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"error": "EMAIL_BLACKLISTED", "message": message}
+                )
+            elif "limit" in message.lower() or "frequently" in message.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail={"error": "RATE_LIMIT", "message": message}
+                )
+            elif "template" in message.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={"error": "TEMPLATE_ERROR", "message": "Email service configuration error"}
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={"error": "SEND_FAILED", "message": message}
+                )
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error sending verification: {e}")
-        raise HTTPException(status_code=500, detail="Failed to send verification code")
+        logger.error(f"Unexpected error in send_verification_code: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "INTERNAL_ERROR", "message": "An unexpected error occurred. Please try again later."}
+        )
 
 
 @router.post("/webhook/shopify")
@@ -539,13 +576,36 @@ async def verify_email_first(
         email_service=Depends(get_email_service)
 ):
     logger.info(f"[API] Email verification started for: {request.email}")
+    try:
+        success, message = email_service.verify_code(request.email, request.code)
 
-    if not email_service.verify_code(request.email, request.code):
-        logger.warning(f"[API] Invalid verification code for email: {request.email}")
-        raise HTTPException(status_code=400, detail="Invalid verification code")
-
-    logger.info(f"[API] Email verification successful for: {request.email}")
-    return {"message": "Email verified successfully", "verified": True}
+        if success:
+            logger.info(f"[API] Email verification successful for: {request.email}")
+            return {"success": True, "message": message}
+        else:
+            if "expired" in message.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"error": "CODE_EXPIRED", "message": message}
+                )
+            elif "invalid" in message.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"error": "INVALID_CODE", "message": message}
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"error": "VERIFICATION_FAILED", "message": message}
+                )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in verify_email_code: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "INTERNAL_ERROR", "message": "An unexpected error occurred. Please try again later."}
+        )
 
 
 @router.post("/astrology/calculate")

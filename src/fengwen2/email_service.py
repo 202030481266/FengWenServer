@@ -7,7 +7,7 @@ import warnings
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import wraps
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 
 import redis
 from alibabacloud_credentials.client import Client as CredentialClient
@@ -28,6 +28,26 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
+class EmailError(Exception):
+    """Base exception for email service errors"""
+    pass
+
+
+class EmailValidationError(EmailError):
+    """Email validation errors"""
+    pass
+
+
+class EmailProviderError(EmailError):
+    """Email provider related errors"""
+    pass
+
+
+class EmailDeliveryError(EmailError):
+    """Email delivery errors"""
+    pass
+
+
 def deprecated(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -38,13 +58,20 @@ def deprecated(func):
     return wrapper
 
 
+def validate_email_format(email: str) -> bool:
+    """Basic email format validation"""
+    import re
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+
 def get_redis_client():
     """Initialize and return Redis client."""
     try:
-        REDIS_URL = os.getenv("REDIS_URL")
-        if not REDIS_URL:
+        redis_url = os.getenv("REDIS_URL")
+        if not redis_url:
             raise ValueError("REDIS_URL environment variable not set.")
-        client = redis.from_url(REDIS_URL, decode_responses=True)
+        client = redis.from_url(redis_url, decode_responses=True)
         client.ping()
         logger.info("Successfully connected to Redis.")
         return client
@@ -65,6 +92,14 @@ class EmailProvider(Enum):
     ALIBABA = "alibaba"
 
 
+class EmailSendResult:
+    """Result object for email sending operations"""
+    def __init__(self, success: bool, message: str = "", error_code: str = None):
+        self.success = success
+        self.message = message
+        self.error_code = error_code
+
+
 class BaseEmailProvider(ABC):
     """Abstract base class for email providers."""
 
@@ -77,13 +112,26 @@ class BaseEmailProvider(ABC):
             content_type: str = "html",
             from_email: Optional[str] = None,
             **kwargs
-    ) -> bool:
+    ) -> EmailSendResult:
         """Send an email through the provider."""
         pass
 
 
 class TencentEmailProvider(BaseEmailProvider):
     """Tencent Cloud SES email provider."""
+
+    # Common Tencent error codes and their user-friendly messages
+    ERROR_MESSAGES = {
+        "InvalidParameterValue.InvalidEmailAddress": "Invalid email address format",
+        "InvalidParameterValue.EmailAddressNotExist": "Email address does not exist",
+        "InvalidParameterValue.EmailContentIsTooLarge": "Email content is too large",
+        "RequestLimitExceeded.SendEmailRequestLimit": "Too many requests, please try again later",
+        "ResourceNotFound.TemplateNotExist": "Email template not found",
+        "FailedOperation.EmailAddressInBlacklist": "Email address is blacklisted",
+        "FailedOperation.FrequencyLimit": "Sending too frequently, please wait a moment",
+        "FailedOperation.ExceedSendLimit": "Daily sending limit exceeded",
+        "InvalidParameterValue.RepeatedEmailAddress": "Duplicate email address",
+    }
 
     def __init__(self):
         self.secret_id = os.getenv("TENCENTCLOUD_SECRET_ID")
@@ -106,7 +154,7 @@ class TencentEmailProvider(BaseEmailProvider):
             template_id: Optional[str] = None,
             template_data: Optional[Dict] = None,
             **kwargs
-    ) -> bool:
+    ) -> EmailSendResult:
         """Send email using Tencent Cloud SES."""
         try:
             req = models.SendEmailRequest()
@@ -129,18 +177,32 @@ class TencentEmailProvider(BaseEmailProvider):
 
             self.client.SendEmail(req)
             logger.info(f"[TENCENT] Email sent successfully to {to_email}")
-            return True
+            return EmailSendResult(True, "Email sent successfully")
 
         except TencentCloudSDKException as err:
+            error_msg = self.ERROR_MESSAGES.get(err.code, f"Failed to send email: {err.message}")
             logger.error(f"[TENCENT] Error sending email to {to_email}: {err.code} - {err.message}")
-            return False
+            return EmailSendResult(False, error_msg, err.code)
         except Exception as err:
             logger.error(f"[TENCENT] Unexpected error sending email to {to_email}: {err}")
-            return False
+            return EmailSendResult(False, "An unexpected error occurred while sending email", "UNKNOWN_ERROR")
 
 
 class AlibabaEmailProvider(BaseEmailProvider):
     """Alibaba Cloud DirectMail email provider."""
+
+    # Common Alibaba error codes and their user-friendly messages
+    ERROR_MESSAGES = {
+        "InvalidEmail.Malformed": "Invalid email address format",
+        "InvalidEmail.NotExist": "Email address does not exist or is unreachable",
+        "InvalidDomain": "Invalid email domain",
+        "InvalidSendMail": "Failed to send email, please check the recipient address",
+        "InvalidTemplate": "Email template error",
+        "ReceiverBlacklist": "Recipient email is blacklisted",
+        "SpamTooMuch": "Email content detected as spam",
+        "DailyQuotaExceed": "Daily sending limit exceeded",
+        "Throttling.User": "Sending too frequently, please wait a moment",
+    }
 
     def __init__(self):
         self.account_name = os.getenv("ALIBABA_EMAIL_ACCOUNT")
@@ -168,7 +230,7 @@ class AlibabaEmailProvider(BaseEmailProvider):
             content_type: str = "html",
             from_email: Optional[str] = None,
             **kwargs
-    ) -> bool:
+    ) -> EmailSendResult:
         """Send email using Alibaba Cloud DirectMail."""
         try:
             request = dm_20151123_models.SingleSendMailRequest(
@@ -188,13 +250,19 @@ class AlibabaEmailProvider(BaseEmailProvider):
             self.client.single_send_mail_with_options(request, runtime)
 
             logger.info(f"[ALIBABA] Email sent successfully to {to_email}")
-            return True
+            return EmailSendResult(True, "Email sent successfully")
 
         except Exception as err:
-            logger.error(f"[ALIBABA] Error sending email to {to_email}: {err}")
-            if hasattr(err, 'data'):
+            error_code = None
+            error_msg = str(err)
+            
+            if hasattr(err, 'data') and err.data:
+                error_code = err.data.get('Code')
+                error_msg = self.ERROR_MESSAGES.get(error_code, err.data.get('Message', error_msg))
                 logger.error(f"[ALIBABA] Error details: {err.data}")
-            return False
+            
+            logger.error(f"[ALIBABA] Error sending email to {to_email}: {err}")
+            return EmailSendResult(False, f"Failed to send email: {error_msg}", error_code)
 
 
 class EmailService:
@@ -242,7 +310,7 @@ class EmailService:
     def get_provider(self, provider_type: EmailProvider) -> BaseEmailProvider:
         """Get email provider by type."""
         if provider_type not in self.providers:
-            raise ValueError(f"Provider {provider_type.value} is not available")
+            raise EmailProviderError(f"Provider {provider_type.value} is not available")
         return self.providers[provider_type]
 
     @staticmethod
@@ -256,9 +324,20 @@ class EmailService:
         """Generate random verification code."""
         return ''.join(random.choices(string.digits, k=length))
 
-    async def send_verification_email(self, email: str) -> bool:
-        """Send verification code email using Tencent Cloud (template-based)."""
+    async def send_verification_email(self, email: str) -> Tuple[bool, str]:
+        """
+        Send verification code email using Tencent Cloud (template-based).
+        
+        Returns:
+            Tuple[bool, str]: (success, error_message)
+        """
         try:
+            # Validate email format first
+            if not validate_email_format(email):
+                error_msg = "Invalid email address format"
+                logger.warning(f"[EMAIL] {error_msg}: {email}")
+                return False, error_msg
+
             verification_code = self.generate_verification_code()
             redis_key = f"{self._VCODE_PREFIX}{email}"
 
@@ -272,7 +351,7 @@ class EmailService:
             )
 
             # Use Tencent's template system for verification emails
-            success = await provider.send_email(
+            result = await provider.send_email(
                 to_email=email,
                 subject="Email Verification Code",
                 content="",  # Not used with template
@@ -280,35 +359,48 @@ class EmailService:
                 template_data={"code": verification_code}
             )
 
-            if success:
+            if result.success:
                 self.redis.set(redis_key, verification_code, ex=self.code_expiry_seconds)
                 self._log_email_action("Verification email sent successfully", email)
+                return True, "Verification code sent successfully"
+            else:
+                return False, result.message
 
-            return success
-
+        except EmailProviderError as err:
+            error_msg = str(err)
+            logger.error(f"[EMAIL] Provider error: {error_msg}")
+            return False, error_msg
         except Exception as err:
-            logger.error(f"[EMAIL] Error sending verification to {email}: {err}")
-            return False
+            error_msg = f"Failed to send verification email: {str(err)}"
+            logger.error(f"[EMAIL] Unexpected error sending verification to {email}: {err}")
+            return False, error_msg
 
-    def verify_code(self, email: str, code: str) -> bool:
-        """Verify email code from Redis."""
+    def verify_code(self, email: str, code: str) -> Tuple[bool, str]:
+        """
+        Verify email code from Redis.
+        
+        Returns:
+            Tuple[bool, str]: (success, message)
+        """
         redis_key = f"{self._VCODE_PREFIX}{email}"
         stored_code = self.redis.get(redis_key)
 
         self._log_email_action("Verifying code", email, provided=code, stored=stored_code)
 
-        if stored_code and stored_code == code:
-            pipe = self.redis.pipeline()
-            pipe.delete(redis_key)
-            verified_key = f"{self._VERIFIED_PREFIX}{email}"
-            pipe.set(verified_key, "true", ex=self.verified_status_expiry_seconds)
-            pipe.execute()
+        if not stored_code:
+            return False, "Verification code has expired or does not exist"
+        
+        if stored_code != code:
+            return False, "Invalid verification code"
 
-            self._log_email_action("Code verification successful", email)
-            return True
+        pipe = self.redis.pipeline()
+        pipe.delete(redis_key)
+        verified_key = f"{self._VERIFIED_PREFIX}{email}"
+        pipe.set(verified_key, "true", ex=self.verified_status_expiry_seconds)
+        pipe.execute()
 
-        logger.warning(f"[EMAIL] Code verification failed for {email}")
-        return False
+        self._log_email_action("Code verification successful", email)
+        return True, "Email verified successfully"
 
     def is_email_recently_verified(self, email: str) -> bool:
         """Check if email's verified status key exists in Redis."""
@@ -397,9 +489,20 @@ class EmailService:
             astrology_result: str,
             subject: str,
             content_type: str = "html"
-    ) -> bool:
-        """Send astrology result email using Alibaba Cloud (HTML-based)."""
+    ) -> Tuple[bool, str]:
+        """
+        Send astrology result email using Alibaba Cloud (HTML-based).
+        
+        Returns:
+            Tuple[bool, str]: (success, error_message)
+        """
         try:
+            # Validate email format first
+            if not validate_email_format(email):
+                error_msg = "Invalid email address format"
+                logger.warning(f"[EMAIL] {error_msg}: {email}")
+                return False, error_msg
+
             provider = self.get_provider(self.result_provider)
 
             self._log_email_action(
@@ -409,24 +512,31 @@ class EmailService:
             )
 
             # Use Alibaba's single send email for results
-            success = await provider.send_email(
+            result = await provider.send_email(
                 to_email=email,
                 subject=subject,
                 content=astrology_result,
                 content_type=content_type,
             )
 
-            if success:
+            if result.success:
                 self._log_email_action("Astrology result email sent successfully", email)
-
-            return success
+                return True, "Result email sent successfully"
+            else:
+                return False, result.message
 
         except json.JSONDecodeError as err:
+            error_msg = "Failed to parse result data"
             logger.error(f"[EMAIL] Failed to parse astrology_result JSON: {err}")
-            return False
+            return False, error_msg
+        except EmailProviderError as err:
+            error_msg = str(err)
+            logger.error(f"[EMAIL] Provider error: {error_msg}")
+            return False, error_msg
         except Exception as err:
+            error_msg = f"Failed to send result email: {str(err)}"
             logger.error(f"[EMAIL] Error sending result to {email}: {err}")
-            return False
+            return False, error_msg
 
     async def send_custom_email(
             self,
@@ -436,11 +546,22 @@ class EmailService:
             content_type: str = "html",
             provider: Optional[EmailProvider] = None,
             **kwargs
-    ) -> bool:
-        """Send a custom email using specified or default provider."""
+    ) -> Tuple[bool, str]:
+        """
+        Send a custom email using specified or default provider.
+        
+        Returns:
+            Tuple[bool, str]: (success, error_message)
+        """
         try:
+            # Validate email format first
+            if not validate_email_format(to_email):
+                error_msg = "Invalid email address format"
+                logger.warning(f"[EMAIL] {error_msg}: {to_email}")
+                return False, error_msg
+
             # Use specified provider or default to Alibaba for general emails
-            email_provider = provider or EmailProvider.ALIBABA
+            email_provider = provider if provider is not None else EmailProvider.ALIBABA
             provider_instance = self.get_provider(email_provider)
 
             self._log_email_action(
@@ -450,7 +571,7 @@ class EmailService:
                 provider=email_provider.value
             )
 
-            success = await provider_instance.send_email(
+            result = await provider_instance.send_email(
                 to_email=to_email,
                 subject=subject,
                 content=content,
@@ -458,11 +579,17 @@ class EmailService:
                 **kwargs
             )
 
-            if success:
+            if result.success:
                 self._log_email_action("Custom email sent successfully", to_email)
+                return True, "Email sent successfully"
+            else:
+                return False, result.message
 
-            return success
-
+        except EmailProviderError as err:
+            error_msg = str(err)
+            logger.error(f"[EMAIL] Provider error: {error_msg}")
+            return False, error_msg
         except Exception as err:
+            error_msg = f"Failed to send email: {str(err)}"
             logger.error(f"[EMAIL] Error sending custom email to {to_email}: {err}")
-            return False
+            return False, error_msg
