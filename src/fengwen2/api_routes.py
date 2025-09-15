@@ -119,7 +119,6 @@ async def send_verification_code(
         if success:
             return {"success": True, "message": message}
         else:
-            # 根据不同的错误信息返回适当的状态码
             if "Invalid email" in message or "format" in message.lower():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
