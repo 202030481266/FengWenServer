@@ -21,6 +21,11 @@ from src.fengwen2.astrology_data_mask import AstrologyDataMaskingService
 from src.fengwen2.astrology_views import AstrologyApiResponseView, AstrologyResultsView
 from src.fengwen2.cache_config import CACHE_TTL, CacheManager
 from src.fengwen2.database import get_db, AstrologyRecord
+from src.fengwen2.email_service import (
+    EmailFormatError, EmailNotExistError, EmailBlacklistedError, EmailRateLimitError,
+    EmailProviderError, EmailSendFailedError,
+    VerificationCodeExpiredError, VerificationCodeInvalidError
+)
 from src.fengwen2.service_manager import get_service_manager
 
 logger = logging.getLogger(__name__)
@@ -112,46 +117,41 @@ async def send_verification_code(
         request: EmailRequest,
         email_service=Depends(get_email_service)
 ):
-    """Send email verification code with detailed error handling"""
+    """Send email verification code with proper exception handling"""
     try:
-        success, message = await email_service.send_verification_email(request.email)
-
-        if success:
-            return {"success": True, "message": message}
-        else:
-            if "Invalid email" in message or "format" in message.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "INVALID_EMAIL", "message": message}
-                )
-            elif "does not exist" in message or "unreachable" in message:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "EMAIL_NOT_EXIST", "message": message}
-                )
-            elif "blacklist" in message.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail={"error": "EMAIL_BLACKLISTED", "message": message}
-                )
-            elif "limit" in message.lower() or "frequently" in message.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail={"error": "RATE_LIMIT", "message": message}
-                )
-            elif "template" in message.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail={"error": "TEMPLATE_ERROR", "message": "Email service configuration error"}
-                )
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail={"error": "SEND_FAILED", "message": message}
-                )
-
-    except HTTPException:
-        raise
+        message = await email_service.send_verification_email(request.email)
+        return {"success": True, "message": message}
+        
+    except EmailFormatError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "INVALID_EMAIL", "message": str(e)}
+        )
+    except EmailNotExistError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "EMAIL_NOT_EXIST", "message": str(e)}
+        )
+    except EmailProviderError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "PROVIDER_ERROR", "message": str(e)}
+        )
+    except EmailBlacklistedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "EMAIL_BLACKLISTED", "message": str(e)}
+        )
+    except EmailRateLimitError as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"error": "RATE_LIMIT", "message": str(e)}
+        )
+    except EmailSendFailedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "SEND_FAILED", "message": str(e)}
+        )
     except Exception as e:
         logger.error(f"Unexpected error in send_verification_code: {e}")
         raise HTTPException(
@@ -574,31 +574,23 @@ async def verify_email_first(
         request: VerificationRequest,
         email_service=Depends(get_email_service)
 ):
+    """Verify email code with proper exception handling"""
     logger.info(f"[API] Email verification started for: {request.email}")
     try:
-        success, message = email_service.verify_code(request.email, request.code)
-
-        if success:
-            logger.info(f"[API] Email verification successful for: {request.email}")
-            return {"success": True, "message": message}
-        else:
-            if "expired" in message.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "CODE_EXPIRED", "message": message}
-                )
-            elif "invalid" in message.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "INVALID_CODE", "message": message}
-                )
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "VERIFICATION_FAILED", "message": message}
-                )
-    except HTTPException:
-        raise
+        message = email_service.verify_code(request.email, request.code)
+        logger.info(f"[API] Email verification successful for: {request.email}")
+        return {"success": True, "message": message}
+        
+    except VerificationCodeExpiredError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "CODE_EXPIRED", "message": str(e)}
+        )
+    except VerificationCodeInvalidError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "INVALID_CODE", "message": str(e)}
+        )
     except Exception as e:
         logger.error(f"Unexpected error in verify_email_code: {e}")
         raise HTTPException(

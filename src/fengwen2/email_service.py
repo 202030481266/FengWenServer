@@ -48,6 +48,51 @@ class EmailDeliveryError(EmailError):
     pass
 
 
+class EmailFormatError(EmailValidationError):
+    """Invalid email format"""
+    pass
+
+
+class EmailNotExistError(EmailValidationError):
+    """Email address does not exist or is unreachable"""
+    pass
+
+
+class EmailBlacklistedError(EmailDeliveryError):
+    """Email address is blacklisted"""
+    pass
+
+
+class EmailRateLimitError(EmailDeliveryError):
+    """Rate limit exceeded"""
+    pass
+
+
+class EmailTemplateError(EmailProviderError):
+    """Email template error"""
+    pass
+
+
+class EmailSendFailedError(EmailDeliveryError):
+    """General email sending failure"""
+    pass
+
+
+class VerificationCodeExpiredError(EmailError):
+    """Verification code has expired"""
+    pass
+
+
+class VerificationCodeInvalidError(EmailError):
+    """Verification code is invalid"""
+    pass
+
+
+class VerificationFailedError(EmailError):
+    """General verification failure"""
+    pass
+
+
 def deprecated(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -180,12 +225,28 @@ class TencentEmailProvider(BaseEmailProvider):
             return EmailSendResult(True, "Email sent successfully")
 
         except TencentCloudSDKException as err:
-            error_msg = self.ERROR_MESSAGES.get(err.code, f"Failed to send email: {err.message}")
             logger.error(f"[TENCENT] Error sending email to {to_email}: {err.code} - {err.message}")
-            return EmailSendResult(False, error_msg, err.code)
+            
+            # Map Tencent error codes to specific exceptions
+            if err.code == "InvalidParameterValue.InvalidEmailAddress":
+                raise EmailFormatError("Invalid email address format")
+            elif err.code == "InvalidParameterValue.EmailAddressNotExist":
+                raise EmailNotExistError("Email address does not exist")
+            elif err.code == "FailedOperation.EmailAddressInBlacklist":
+                raise EmailBlacklistedError("Email address is blacklisted")
+            elif err.code in ["RequestLimitExceeded.SendEmailRequestLimit", "FailedOperation.FrequencyLimit", "FailedOperation.ExceedSendLimit"]:
+                raise EmailRateLimitError("Rate limit exceeded, please try again later")
+            elif err.code == "ResourceNotFound.TemplateNotExist":
+                raise EmailTemplateError("Email template not found")
+            elif err.code == 'FailedOperation.UnsupportMailType':
+                raise EmailProviderError('Unsupported Email provider! Please Use a Valid Email!')
+            else:
+                error_msg = self.ERROR_MESSAGES.get(err.code, f"Failed to send email: {err.message}")
+                raise EmailSendFailedError(error_msg)
+                
         except Exception as err:
             logger.error(f"[TENCENT] Unexpected error sending email to {to_email}: {err}")
-            return EmailSendResult(False, "An unexpected error occurred while sending email", "UNKNOWN_ERROR")
+            raise EmailSendFailedError("An unexpected error occurred while sending email")
 
 
 class AlibabaEmailProvider(BaseEmailProvider):
@@ -262,7 +323,22 @@ class AlibabaEmailProvider(BaseEmailProvider):
                 logger.error(f"[ALIBABA] Error details: {err.data}")
             
             logger.error(f"[ALIBABA] Error sending email to {to_email}: {err}")
-            return EmailSendResult(False, f"Failed to send email: {error_msg}", error_code)
+            
+            # Map Alibaba error codes to specific exceptions
+            if error_code == "InvalidEmail.Malformed":
+                raise EmailFormatError("Invalid email address format")
+            elif error_code in ["InvalidEmail.NotExist", "InvalidDomain"]:
+                raise EmailNotExistError("Email address does not exist or is unreachable")
+            elif error_code == "ReceiverBlacklist":
+                raise EmailBlacklistedError("Recipient email is blacklisted")
+            elif error_code in ["DailyQuotaExceed", "Throttling.User"]:
+                raise EmailRateLimitError("Rate limit exceeded, please try again later")
+            elif error_code == "InvalidTemplate":
+                raise EmailTemplateError("Email template error")
+            elif error_code in ["InvalidSendMail", "SpamTooMuch"]:
+                raise EmailSendFailedError(error_msg)
+            else:
+                raise EmailSendFailedError(f"Failed to send email: {error_msg}")
 
 
 class EmailService:
@@ -324,65 +400,67 @@ class EmailService:
         """Generate random verification code."""
         return ''.join(random.choices(string.digits, k=length))
 
-    async def send_verification_email(self, email: str) -> Tuple[bool, str]:
+    async def send_verification_email(self, email: str) -> str:
         """
         Send verification code email using Tencent Cloud (template-based).
         
         Returns:
-            Tuple[bool, str]: (success, error_message)
+            str: Success message
+            
+        Raises:
+            EmailFormatError: If email format is invalid
+            EmailNotExistError: If email doesn't exist
+            EmailBlacklistedError: If email is blacklisted
+            EmailRateLimitError: If rate limit is exceeded
+            EmailTemplateError: If template error occurs
+            EmailProviderError: If provider error occurs
+            EmailSendFailedError: If sending fails for other reasons
         """
-        try:
-            # Validate email format first
-            if not validate_email_format(email):
-                error_msg = "Invalid email address format"
-                logger.warning(f"[EMAIL] {error_msg}: {email}")
-                return False, error_msg
+        # Validate email format first
+        if not validate_email_format(email):
+            logger.warning(f"[EMAIL] Invalid email format: {email}")
+            raise EmailFormatError("Invalid email address format")
 
-            verification_code = self.generate_verification_code()
-            redis_key = f"{self._VCODE_PREFIX}{email}"
+        verification_code = self.generate_verification_code()
+        redis_key = f"{self._VCODE_PREFIX}{email}"
 
-            provider = self.get_provider(self.verification_provider)
+        provider = self.get_provider(self.verification_provider)
 
-            self._log_email_action(
-                "Sending verification code",
-                email,
-                code="******",
-                provider=self.verification_provider.value
-            )
+        self._log_email_action(
+            "Sending verification code",
+            email,
+            code="******",
+            provider=self.verification_provider.value
+        )
 
-            # Use Tencent's template system for verification emails
-            result = await provider.send_email(
-                to_email=email,
-                subject="Email Verification Code",
-                content="",  # Not used with template
-                template_id=self.verification_template,
-                template_data={"code": verification_code}
-            )
+        # Use Tencent's template system for verification emails
+        result = await provider.send_email(
+            to_email=email,
+            subject="Email Verification Code",
+            content="",  # Not used with template
+            template_id=self.verification_template,
+            template_data={"code": verification_code}
+        )
 
-            if result.success:
-                self.redis.set(redis_key, verification_code, ex=self.code_expiry_seconds)
-                self._log_email_action("Verification email sent successfully", email)
-                return True, "Verification code sent successfully"
-            elif result.error_code == 'FailedOperation.UnsupportMailType':
-                return False, 'Unsupported Email provider! Please Use a Valid Email!'
-            else:
-                return False, result.message
+        if result.success:
+            self.redis.set(redis_key, verification_code, ex=self.code_expiry_seconds)
+            self._log_email_action("Verification email sent successfully", email)
+            return "Verification code sent successfully"
+        else:
+            # This should not happen since provider.send_email should raise exceptions
+            # But keeping as fallback
+            raise EmailSendFailedError(result.message)
 
-        except EmailProviderError as err:
-            error_msg = str(err)
-            logger.error(f"[EMAIL] Provider error: {error_msg}")
-            return False, error_msg
-        except Exception as err:
-            error_msg = f"Failed to send verification email: {str(err)}"
-            logger.error(f"[EMAIL] Unexpected error sending verification to {email}: {err}")
-            return False, error_msg
-
-    def verify_code(self, email: str, code: str) -> Tuple[bool, str]:
+    def verify_code(self, email: str, code: str) -> str:
         """
         Verify email code from Redis.
         
         Returns:
-            Tuple[bool, str]: (success, message)
+            str: Success message
+            
+        Raises:
+            VerificationCodeExpiredError: If code has expired or doesn't exist
+            VerificationCodeInvalidError: If code is invalid
         """
         redis_key = f"{self._VCODE_PREFIX}{email}"
         stored_code = self.redis.get(redis_key)
@@ -390,10 +468,10 @@ class EmailService:
         self._log_email_action("Verifying code", email, provided=code, stored=stored_code)
 
         if not stored_code:
-            return False, "Verification code has expired or does not exist"
+            raise VerificationCodeExpiredError("Verification code has expired or does not exist")
         
         if stored_code != code:
-            return False, "Invalid verification code"
+            raise VerificationCodeInvalidError("Invalid verification code")
 
         pipe = self.redis.pipeline()
         pipe.delete(redis_key)
@@ -402,7 +480,7 @@ class EmailService:
         pipe.execute()
 
         self._log_email_action("Code verification successful", email)
-        return True, "Email verified successfully"
+        return "Email verified successfully"
 
     def is_email_recently_verified(self, email: str) -> bool:
         """Check if email's verified status key exists in Redis."""
