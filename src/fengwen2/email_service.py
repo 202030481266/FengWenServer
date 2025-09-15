@@ -363,6 +363,8 @@ class EmailService:
                 self.redis.set(redis_key, verification_code, ex=self.code_expiry_seconds)
                 self._log_email_action("Verification email sent successfully", email)
                 return True, "Verification code sent successfully"
+            elif result.error_code == 'FailedOperation.UnsupportMailType':
+                return False, 'Unsupported Email provider! Please Use a Valid Email!'
             else:
                 return False, result.message
 
