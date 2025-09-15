@@ -187,14 +187,40 @@ class MJMLEmailService:
         finally:
             if os.path.exists(temp_mjml_path):
                 os.unlink(temp_mjml_path)
-
-    def render_email(self,
-                     template_name: str,
-                     astrology_results: 'AstrologyResultsView',
-                     additional_context: Optional[Dict[str, Any]] = None) -> str:
+    
+    def render_email(self, template_name: str, context: Dict[str, Any]) -> str:
         """
-        完整的邮件渲染流程：从模板到最终HTML
+        通用的邮件渲染函数：从模板到最终HTML的完整流程
+        todo: 这里实际上可以使用流水线优化
+        
+        Args:
+            template_name: 模板文件名（如：'astrology_report.mjml.j2'）
+            context: 渲染上下文数据
+            
+        Returns:
+            最终的HTML邮件内容
+        """
+        try:
+            # 使用jinja2渲染MJML模板
+            mjml_content = self.render_template_to_mjml(template_name, context)
+            
+            # 将MJML转换为HTML
+            html_content = self.convert_mjml_to_html(mjml_content)
+            
+            logger.debug(f"Successfully rendered email from template: {template_name}")
+            return html_content
+            
+        except Exception as e:
+            logger.error(f"Failed to render email from template {template_name}: {str(e)}", exc_info=True)
+            raise
 
+    def render_astrology_result_email(self,
+                                      template_name: str,
+                                      astrology_results: 'AstrologyResultsView',
+                                      additional_context: Optional[Dict[str, Any]] = None) -> str:
+        """
+        渲染占星结果邮件
+        
         Args:
             template_name: 模板文件名
             astrology_results: 占星结果数据对象
@@ -208,46 +234,50 @@ class MJMLEmailService:
             "liudao": astrology_results.liudao,
             "zhengyuan": astrology_results.zhengyuan
         }
-
         if additional_context:
             context.update(additional_context)
+        return self.render_email(template_name, context)
 
-        # use jinja2 render the mjml html
-        mjml_content = self.render_template_to_mjml(template_name, context)
-
-        # turn mjml html into email html
-        html_content = self.convert_mjml_to_html(mjml_content)
-
-        return html_content
-
-    def render_and_save(self,
-                        template_name: str,
-                        astrology_results: 'AstrologyResultsView',
-                        output_path: str,
-                        additional_context: Optional[Dict[str, Any]] = None) -> str:
+    def render_verification_code_email(self, 
+                                     code: str, 
+                                     additional_context: Optional[Dict[str, Any]] = None) -> str:
         """
-        渲染邮件并保存到文件
+        渲染验证码邮件
+        
+        Args:
+            code: 验证码
+            recipient_email: 收件人邮箱
+            additional_context: 额外的上下文数据
+            
+        Returns:
+            最终的HTML邮件内容
+        """
+        context = {
+            "code": code
+        }
+        if additional_context:
+            context.update(additional_context)
+        return self.render_email("verification_code.mjml.j2", context)
 
+    def render_email_and_save(self,
+                             template_name: str,
+                             context: Dict[str, Any],
+                             output_path: str) -> str:
+        """
+        通用的邮件渲染并保存到文件的方法
+        
         Args:
             template_name: 模板文件名
-            astrology_results: 占星结果数据对象
+            context: 渲染上下文数据
             output_path: 输出文件路径
-            additional_context: 额外的上下文数据
-
+            
         Returns:
             输出文件的绝对路径
         """
-        html_content = self.render_email(
-            template_name,
-            astrology_results,
-            additional_context
-        )
-
+        html_content = self.render_email(template_name, context)
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
-
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(html_content)
-
         logger.info(f"Email HTML saved to: {output_file.absolute()}")
         return str(output_file.absolute())

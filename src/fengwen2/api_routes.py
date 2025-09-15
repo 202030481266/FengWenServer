@@ -201,7 +201,7 @@ async def shopify_webhook(
                         email_template = 'astrology_report_earth.mjml.j2'
 
                     # render the result
-                    email_content = mjml_service.render_email(
+                    email_content = mjml_service.render_astrology_result_email(
                         template_name=email_template,
                         astrology_results=astrology_result
                     )
@@ -777,7 +777,7 @@ async def test_send_email(
             logger.info(f"[TEST EMAIL] Using template: {email_template}")
 
             # 渲染邮件内容
-            email_content = mjml_service.render_email(
+            email_content = mjml_service.render_astrology_result_email(
                 template_name=email_template,
                 astrology_results=astrology_result
             )
