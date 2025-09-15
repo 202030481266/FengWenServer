@@ -20,7 +20,7 @@ load_dotenv()
 def get_mjml_executable_path() -> str | None:
     home = Path.home()
     if os.getenv("MJML_EXECUTABLE_PATH", None) is not None:  # 优先使用环境变量
-        path = Path(os.getenv("MJML_EXECUTABLE_PATH"))  # 转换为 Path 对象
+        path = Path(os.getenv("MJML_EXECUTABLE_PATH"))
     else:
         if sys.platform == "win32":
             logger.info("Detect Windows System, use default path")
@@ -65,8 +65,6 @@ def get_mjml_executable_path() -> str | None:
 class MJMLEmailService:
     """
     MJML邮件服务类，处理从mjml.j2模板到HTML邮件的转换
-    实际上这个过程非常高效，而且可以使用流水线优化，但是目前的瓶颈在jinja2，所以只需要多线程就行
-    测试表现来看一份报告大概就是2到3秒左右
     """
 
     def __init__(self,
@@ -88,16 +86,12 @@ class MJMLEmailService:
             "beautify": False,
             "validation_level": "soft"
         }
-
-        # 初始化Jinja2环境
         self.jinja_env = Environment(
             loader=FileSystemLoader(self.template_dir),
             autoescape=True,
             trim_blocks=True,
             lstrip_blocks=True
         )
-
-        # 验证mjml命令是否可用
         self._verify_mjml_installation()
 
     def _verify_mjml_installation(self):
@@ -187,7 +181,7 @@ class MJMLEmailService:
         finally:
             if os.path.exists(temp_mjml_path):
                 os.unlink(temp_mjml_path)
-    
+
     def render_email(self, template_name: str, context: Dict[str, Any]) -> str:
         """
         通用的邮件渲染函数：从模板到最终HTML的完整流程
@@ -201,15 +195,10 @@ class MJMLEmailService:
             最终的HTML邮件内容
         """
         try:
-            # 使用jinja2渲染MJML模板
             mjml_content = self.render_template_to_mjml(template_name, context)
-            
-            # 将MJML转换为HTML
             html_content = self.convert_mjml_to_html(mjml_content)
-            
             logger.debug(f"Successfully rendered email from template: {template_name}")
             return html_content
-            
         except Exception as e:
             logger.error(f"Failed to render email from template {template_name}: {str(e)}", exc_info=True)
             raise
@@ -238,15 +227,14 @@ class MJMLEmailService:
             context.update(additional_context)
         return self.render_email(template_name, context)
 
-    def render_verification_code_email(self, 
-                                     code: str, 
-                                     additional_context: Optional[Dict[str, Any]] = None) -> str:
+    def render_verification_code_email(self,
+                                       code: str,
+                                       additional_context: Optional[Dict[str, Any]] = None) -> str:
         """
         渲染验证码邮件
         
         Args:
             code: 验证码
-            recipient_email: 收件人邮箱
             additional_context: 额外的上下文数据
             
         Returns:
@@ -258,9 +246,9 @@ class MJMLEmailService:
         return self.render_email("verification_code.mjml.j2", context)
 
     def render_email_and_save(self,
-                             template_name: str,
-                             context: Dict[str, Any],
-                             output_path: str) -> str:
+                              template_name: str,
+                              context: Dict[str, Any],
+                              output_path: str) -> str:
         """
         通用的邮件渲染并保存到文件的方法
         

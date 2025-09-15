@@ -554,7 +554,7 @@ async def send_verification_code(
 
         result = await email_service.send_verification_email(email=request.email, content=verification_code_email,
                                                              content_type='html')
-        
+
         if result.success:
             verification_service.store_verification_code(request.email, verification_code)
             return make_response(True, "", "Verification code sent successfully")

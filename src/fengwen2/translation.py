@@ -449,7 +449,6 @@ Only return numbered translations."""
             return {}
 
         async with semaphore:
-            # Create numbered list
             numbered = [f"{i + 1}. {text}" for i, text in enumerate(texts)]
             batch_text = "\n\n".join(numbered)
 
@@ -478,7 +477,6 @@ Only return numbered translations."""
                     response.raise_for_status()
                     result = response.json()["choices"][0]["message"]["content"]
 
-                    # Parse results
                     translations = {}
                     for line in result.split('\n'):
                         match = re.match(r'^(\d+)\.\s+(.+)', line.strip())

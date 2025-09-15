@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Optional, Dict, Tuple
 
-import redis
 from alibabacloud_credentials.client import Client as CredentialClient
 from alibabacloud_credentials.models import Config as CredentialConfig
 from alibabacloud_dm20151123 import models as dm_20151123_models
@@ -94,27 +93,6 @@ def validate_email_format(email: str) -> bool:
     return re.match(pattern, email) is not None
 
 
-def get_redis_client():
-    """Initialize and return Redis client."""
-    try:
-        redis_url = os.getenv("REDIS_URL")
-        if not redis_url:
-            raise ValueError("REDIS_URL environment variable not set.")
-        client = redis.from_url(redis_url, decode_responses=True)
-        client.ping()
-        logger.info("Successfully connected to Redis.")
-        return client
-    except redis.exceptions.ConnectionError as e:
-        logger.error(f"Could not connect to Redis: {e}")
-        return None
-    except ValueError as e:
-        logger.error(e)
-        return None
-
-
-redis_client = get_redis_client()
-
-
 class EmailProvider(Enum):
     """Email service provider types."""
     TENCENT = "tencent"
@@ -123,6 +101,7 @@ class EmailProvider(Enum):
 
 class EmailSendResult:
     """Result object for email sending operations"""
+
     def __init__(self, success: bool, message: str = "", error_code: str = None):
         self.success = success
         self.message = message
@@ -210,7 +189,7 @@ class TencentEmailProvider(BaseEmailProvider):
 
         except TencentCloudSDKException as err:
             logger.error(f"[TENCENT] Error sending email to {to_email}: {err.code} - {err.message}")
-            
+
             # Map Tencent error codes to specific exceptions
             if err.code == "InvalidParameterValue.InvalidEmailAddress":
                 raise EmailFormatError("Invalid email address format")
@@ -218,7 +197,8 @@ class TencentEmailProvider(BaseEmailProvider):
                 raise EmailNotExistError("Email address does not exist")
             elif err.code == "FailedOperation.EmailAddressInBlacklist":
                 raise EmailBlacklistedError("Email address is blacklisted")
-            elif err.code in ["RequestLimitExceeded.SendEmailRequestLimit", "FailedOperation.FrequencyLimit", "FailedOperation.ExceedSendLimit"]:
+            elif err.code in ["RequestLimitExceeded.SendEmailRequestLimit", "FailedOperation.FrequencyLimit",
+                              "FailedOperation.ExceedSendLimit"]:
                 raise EmailRateLimitError("Rate limit exceeded, please try again later")
             elif err.code == "ResourceNotFound.TemplateNotExist":
                 raise EmailTemplateError("Email template not found")
@@ -227,7 +207,7 @@ class TencentEmailProvider(BaseEmailProvider):
             else:
                 error_msg = self.ERROR_MESSAGES.get(err.code, f"Failed to send email: {err.message}")
                 raise EmailSendFailedError(error_msg)
-                
+
         except Exception as err:
             logger.error(f"[TENCENT] Unexpected error sending email to {to_email}: {err}")
             raise EmailSendFailedError("An unexpected error occurred while sending email")
@@ -300,14 +280,14 @@ class AlibabaEmailProvider(BaseEmailProvider):
         except Exception as err:
             error_code = None
             error_msg = str(err)
-            
+
             if hasattr(err, 'data') and err.data:
                 error_code = err.data.get('Code')
                 error_msg = self.ERROR_MESSAGES.get(error_code, err.data.get('Message', error_msg))
                 logger.error(f"[ALIBABA] Error details: {err.data}")
-            
+
             logger.error(f"[ALIBABA] Error sending email to {to_email}: {err}")
-            
+
             # Map Alibaba error codes to specific exceptions
             if error_code == "InvalidEmail.Malformed":
                 raise EmailFormatError("Invalid email address format")

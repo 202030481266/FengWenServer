@@ -4,9 +4,32 @@ import random
 import string
 from typing import Optional
 
-from src.fengwen2.email_service import get_redis_client, validate_email_format
+import redis
+
+from src.fengwen2.email_service import validate_email_format
 
 logger = logging.getLogger(__name__)
+
+
+def get_redis_client():
+    """Initialize and return Redis client."""
+    try:
+        redis_url = os.getenv("REDIS_URL")
+        if not redis_url:
+            raise ValueError("REDIS_URL environment variable not set.")
+        client = redis.from_url(redis_url, decode_responses=True)
+        client.ping()
+        logger.info("Successfully connected to Redis.")
+        return client
+    except redis.exceptions.ConnectionError as e:
+        logger.error(f"Could not connect to Redis: {e}")
+        return None
+    except ValueError as e:
+        logger.error(e)
+        return None
+
+
+redis_client = get_redis_client()
 
 
 class VerificationCodeExpiredError(Exception):
@@ -21,7 +44,7 @@ class VerificationCodeInvalidError(Exception):
 
 class VerificationService:
     """处理验证码生成、存储和验证的业务逻辑服务"""
-    
+
     _VCODE_PREFIX = "vcode:"
     _VERIFIED_PREFIX = "verified:"
 
@@ -29,11 +52,11 @@ class VerificationService:
         self.redis = get_redis_client()
         if not self.redis:
             raise ConnectionError("VerificationService cannot operate without a Redis connection.")
-        
+
         # Load configuration
         self.code_expiry_seconds = int(os.getenv("VERIFICATION_CODE_EXPIRY_SECONDS", 300))
         self.verified_status_expiry_seconds = int(os.getenv("VERIFIED_STATUS_EXPIRY_SECONDS", 600))
-        
+
         logger.info("VerificationService initialized successfully")
 
     @staticmethod
@@ -51,7 +74,7 @@ class VerificationService:
         """
         if not validate_email_format(email):
             raise ValueError("Invalid email format")
-            
+
         redis_key = f"{self._VCODE_PREFIX}{email}"
         self.redis.set(redis_key, code, ex=self.code_expiry_seconds)
         logger.info(f"[VERIFICATION] Code stored for {email}")
@@ -73,7 +96,7 @@ class VerificationService:
         """
         if not validate_email_format(email):
             raise ValueError("Invalid email format")
-            
+
         redis_key = f"{self._VCODE_PREFIX}{email}"
         stored_code = self.redis.get(redis_key)
 
@@ -81,7 +104,7 @@ class VerificationService:
 
         if not stored_code:
             raise VerificationCodeExpiredError("Verification code has expired or does not exist")
-        
+
         if stored_code != code:
             raise VerificationCodeInvalidError("Invalid verification code")
 
@@ -107,7 +130,7 @@ class VerificationService:
         """
         if not validate_email_format(email):
             return False
-            
+
         verified_key = f"{self._VERIFIED_PREFIX}{email}"
         is_verified = self.redis.exists(verified_key) > 0
 
@@ -126,7 +149,7 @@ class VerificationService:
         """
         if not validate_email_format(email):
             return None
-            
+
         return self.redis.get(f"{self._VCODE_PREFIX}{email}")
 
     def clear_verification_data(self, email: str) -> None:
@@ -138,10 +161,10 @@ class VerificationService:
         """
         if not validate_email_format(email):
             return
-            
+
         pipe = self.redis.pipeline()
         pipe.delete(f"{self._VCODE_PREFIX}{email}")
         pipe.delete(f"{self._VERIFIED_PREFIX}{email}")
         pipe.execute()
-        
+
         logger.info(f"[VERIFICATION] Cleared all verification data for {email}")
