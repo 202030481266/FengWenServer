@@ -233,6 +233,7 @@ class AlibabaEmailProvider(BaseEmailProvider):
         self.account_name = os.getenv("ALIBABA_EMAIL_ACCOUNT")
         self.reply_to_address = os.getenv("ALIBABA_REPLY_TO_ADDRESS", "false").lower() == "true"
         self.endpoint = os.getenv("ALIBABA_EMAIL_ENDPOINT", "dm.aliyuncs.com")  # 华东1 （杭州）
+        self.from_alias = os.getenv("ALIBABA_EMAIL_FROM_ALIAS", 'Fortune Harmony Store')
         self.client = self._create_client()
 
     def _create_client(self) -> Dm20151123Client:
@@ -263,7 +264,8 @@ class AlibabaEmailProvider(BaseEmailProvider):
                 address_type=1,  # 1 for single address
                 to_address=to_email,
                 subject=subject,
-                reply_to_address=self.reply_to_address
+                reply_to_address=self.reply_to_address,
+                from_alias=self.from_alias
             )
 
             if content_type == "html":
