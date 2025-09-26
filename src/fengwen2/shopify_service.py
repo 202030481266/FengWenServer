@@ -36,13 +36,74 @@ class ShopifyPaymentService:
         }
 
     async def create_checkout_url(self, user_email: str, record_id: int) -> Optional[str]:
-        """Create a proper checkout session with metadata"""
+        """Create a proper checkout session with metadata - supports discount codes"""
+        try:
+            # 使用新的checkout创建方法，支持优惠码
+            checkout_url = await self._create_checkout(user_email, record_id)
+            return checkout_url
+        except Exception as e:
+            logger.error(f"Error creating checkout URL: {e}")
+            return None
+    
+    async def create_draft_order_url(self, user_email: str, record_id: int) -> Optional[str]:
+        """Create a draft order - fallback method without discount code support"""
         try:
             draft_order_url = await self._create_draft_order(user_email, record_id)
             return draft_order_url
         except Exception as e:
-            logger.error(f"Error creating checkout URL: {e}")
+            logger.error(f"Error creating draft order URL: {e}")
             return None
+
+    async def _create_checkout(self, user_email: str, record_id: int) -> Optional[str]:
+        """Create a checkout session that supports discount codes"""
+        try:
+            async with httpx.AsyncClient() as client:
+                checkout_data = {
+                    "checkout": {
+                        "line_items": [
+                            {
+                                "variant_id": self.product_variant_id,
+                                "quantity": 1,
+                                "properties": [
+                                    {"name": "record_id", "value": str(record_id)}
+                                ]
+                            }
+                        ],
+                        "email": user_email,
+                        "note": f"Astrology Reading - Record ID: {record_id}",
+                        "note_attributes": [
+                            {"name": "record_id", "value": str(record_id)},
+                            {"name": "service", "value": "astrology_reading"}
+                        ],
+                        "cart_attributes": {
+                            "record_id": str(record_id),
+                            "service": "astrology_reading"
+                        },
+                        "tags": f"astrology,record_{record_id}",
+                        "allow_discount_codes": True
+                    }
+                }
+
+                response = await client.post(
+                    f"{self.admin_api_url}/checkouts.json",
+                    headers=self.headers,
+                    json=checkout_data
+                )
+
+                if response.status_code == 201:
+                    checkout = response.json()["checkout"]
+                    checkout_url = checkout.get("web_url")
+                    logger.info(f"Created checkout for record {record_id}: {checkout_url}")
+                    return checkout_url
+                else:
+                    logger.error(f"Failed to create checkout: {response.text}")
+                    logger.info(f"Falling back to draft order for record {record_id}")
+                    return await self._create_draft_order(user_email, record_id) # Fallback to draft order
+
+        except Exception as e:
+            logger.error(f"Error creating checkout: {e}")
+            logger.info(f"Falling back to draft order for record {record_id} due to exception")
+            return await self._create_draft_order(user_email, record_id) # Fallback to draft order
 
     async def _create_draft_order(self, user_email: str, record_id: int) -> Optional[str]:
         """Create a draft order with custom attributes"""
@@ -163,6 +224,27 @@ class ShopifyPaymentService:
                 record_id = cart_attributes.get("record_id")
                 if record_id:
                     logger.info(f"Found record_id in cart attributes: {record_id}")
+
+            # 6. Check customer attributes (alternative checkout location)
+            if not record_id:
+                customer = order_data.get("customer", {})
+                if customer:
+                    customer_note = customer.get("note", "")
+                    if "record_" in customer_note:
+                        import re
+                        match = re.search(r'record_(\d+)', customer_note)
+                        if match:
+                            record_id = match.group(1)
+                            logger.info(f"Found record_id in customer note: {record_id}")
+
+            # 7. Check order attributes (another possible location)
+            if not record_id:
+                order_attributes = order_data.get("order_attributes", [])
+                for attr in order_attributes:
+                    if attr.get("name", "").lower() == "record_id":
+                        record_id = attr.get("value")
+                        logger.info(f"Found record_id in order attributes: {record_id}")
+                        break
 
             if record_id:
                 return int(record_id)
