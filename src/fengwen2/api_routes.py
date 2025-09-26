@@ -669,13 +669,13 @@ async def create_payment_link(
 
     try:
         checkout_url = await shopify_service.create_checkout_url(record.email, record.id)
-            
+
         if not checkout_url:
-            logger.error(f"Failed to create Shopify {'checkout' if request_data.use_checkout else 'draft order'} URL for record_id: {record.id}")
+            logger.error(f"Failed to create Shopify checkout URL for record_id: {record.id}")
             raise HTTPException(status_code=500, detail="Could not create payment link. Please try again later.")
 
-        logger.info(f"[API] Successfully created {'checkout' if request_data.use_checkout else 'draft order'} link for record_id: {record.id}")
-        return { "shopify_url": checkout_url }
+        logger.info(f"[API] Successfully created checkout link for record_id: {record.id}")
+        return {"shopify_url": checkout_url}
 
     except Exception as e:
         logger.error(f"Error in create_payment_link for record_id {request_data.record_id}: {e}", exc_info=True)
