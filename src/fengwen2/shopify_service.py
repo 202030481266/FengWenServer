@@ -80,74 +80,16 @@ class ShopifyPaymentService:
             return None
 
     async def _create_cart_link(self, user_email: str, record_id: int) -> Optional[str]:
-        """Create a cart link with custom properties for standard Shopify accounts"""
+        """Create a cart link with metadata for standard Shopify accounts"""
         try:
             if not self.product_variant_id:
                 logger.error("Product variant ID not configured")
                 return None
             
-            # 方案1: 使用Ajax Cart API添加商品到购物车并设置自定义属性
-            cart_url = await self._create_cart_with_properties(user_email, record_id)
-            if cart_url:
-                return cart_url
-            
-            # 方案2: 如果Ajax方法失败，创建基础购物车链接并通过URL参数传递元数据
-            logger.info(f"Ajax cart creation failed, using basic cart link for record {record_id}")
-            return self._create_basic_cart_link(user_email, record_id)
-            
-        except Exception as e:
-            logger.error(f"Error creating cart link: {e}")
-            return None
-
-    async def _create_cart_with_properties(self, user_email: str, record_id: int) -> Optional[str]:
-        """Use Ajax Cart API to add items with custom properties"""
-        try:
-            async with httpx.AsyncClient() as client:
-                # 使用Storefront API或Ajax Cart API添加商品
-                cart_data = {
-                    "items": [
-                        {
-                            "id": self.product_variant_id,
-                            "quantity": 1,
-                            "properties": {
-                                "record_id": str(record_id),
-                                "service": "astrology_reading",
-                                "customer_email": user_email
-                            }
-                        }
-                    ]
-                }
-
-                # 尝试使用Ajax Cart API
-                response = await client.post(
-                    f"https://{self.shop_domain}/cart/add.js",
-                    json=cart_data,
-                    headers={
-                        "Content-Type": "application/json",
-                        "Accept": "application/json"
-                    }
-                )
-
-                if response.status_code == 200:
-                    # 成功添加到购物车，返回购物车页面URL
-                    cart_url = f"https://{self.shop_domain}/cart"
-                    logger.info(f"Created cart with properties for record {record_id}: {cart_url}")
-                    return cart_url
-                else:
-                    logger.warning(f"Ajax cart add failed: {response.text}")
-                    return None
-
-        except Exception as e:
-            logger.error(f"Error creating cart with properties: {e}")
-            return None
-
-    def _create_basic_cart_link(self, user_email: str, record_id: int) -> str:
-        """Create a basic cart link with URL parameters for metadata"""
-        try:
             # 基础购物车链接格式: https://shop.myshopify.com/cart/variant_id:quantity
             base_cart_url = f"https://{self.shop_domain}/cart/{self.product_variant_id}:1"
             
-            # 添加URL参数传递元数据（可以在checkout页面通过JavaScript处理）
+            # 添加URL参数传递元数据
             params = {
                 "record_id": str(record_id),
                 "service": "astrology_reading",
@@ -157,11 +99,11 @@ class ShopifyPaymentService:
             
             # 构建完整的URL
             cart_url = f"{base_cart_url}?{urlencode(params)}"
-            logger.info(f"Created basic cart link for record {record_id}: {cart_url}")
+            logger.info(f"Created cart link for record {record_id}: {cart_url}")
             return cart_url
             
         except Exception as e:
-            logger.error(f"Error creating basic cart link: {e}")
+            logger.error(f"Error creating cart link: {e}")
             return f"https://{self.shop_domain}/cart/{self.product_variant_id}:1"
 
 
