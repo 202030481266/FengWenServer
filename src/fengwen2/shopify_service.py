@@ -226,7 +226,8 @@ class ShopifyPaymentService:
             logger.error(f"Error verifying webhook: {e}")
             return False
 
-    def extract_record_id_from_order(self, order_data: Dict) -> Optional[int]:
+    @staticmethod
+    def extract_record_id_from_order(order_data: Dict) -> Optional[int]:
         """Extract astrology record ID from multiple possible locations"""
         try:
             record_id = None
